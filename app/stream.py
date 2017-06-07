@@ -1,6 +1,7 @@
 """Script to establish websocket connection to the stream router."""
 import time
 import io
+import sys
 from websocket import create_connection
 
 # TODO: Sort all of the mingity sleeping rubbish; there must be a better way
@@ -8,6 +9,8 @@ from websocket import create_connection
 # FIXME: This should be in config somewhere
 HOST = 'wss://' + 'termcast.me'
 TYPESCRIPT_FILENAME = '/tmp/filename'
+
+LOCAL_ECHO = False
 
 WS = create_connection(HOST)
 
@@ -18,6 +21,9 @@ with io.open(TYPESCRIPT_FILENAME, 'rb') as TYPESCRIPT_FILENAME:
         if len(DATA) > 0:
             while True:
                 try:
+                    if LOCAL_ECHO:
+                        sys.stdout.write(DATA)
+                        sys.stdout.flush()
                     WS.send(DATA)
                     break
                 except Exception:
