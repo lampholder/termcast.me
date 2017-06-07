@@ -1,0 +1,26 @@
+<!doctype html>
+<html>
+    <head>
+        <title>Termcast terminal viewer.</title>
+        <link type="text/css" rel="stylesheet" href="xterm.css" />
+        <script type="text/javascript" src="xterm.js"></script>
+        <script type="text/javascript">
+            /* This junk needs to be on document ready. */
+            var term = new Terminal();
+            term.open(document.getElementById('terminal'));
+
+            var ws = new WebSocket('wss://termcast.me');
+
+            ws.onopen = function(event) {
+                ws.send('werpwerpwerp');
+            };
+
+            ws.onmessage = function (event) {
+              term.write(event.data);
+            };
+        </script>
+    </head>
+    <body>
+        <div id="terminal"></div>
+    </body>
+</html>
