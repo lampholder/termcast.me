@@ -1,13 +1,19 @@
 """Script to establish websocket connection to the stream router."""
 import io
 import os
+import sys
 import json
+from threading import Thread
 
 import requests
 from websocket import create_connection
 
 session = requests.get('http://localhost/init').json()
-os.environ['STREAM'] = session['session']
+
+template = ' https://termcast.me/%s [%d watchers]\n'
+
+sys.stdout.write(template % (session['session'], 0))
+sys.stdout.flush()
 
 # TODO: Sort all of the mingity sleeping rubbish; there must be a better way
 
@@ -20,6 +26,19 @@ LOCAL_ECHO = False
 WS = create_connection(HOST)
 
 BUFFER_SIZE = 1024
+
+def listener():
+    while True:
+        received = json.loads(WS.recv())
+        if received['type'] == 'viewcount':
+            sys.stdout.write(template % (session['session'], received['msg']))
+            sys.stdout.flush()
+
+try:
+    Thread(target=listener).start()
+except Exception, errtxt:
+    print errtxt
+
 with io.open(TYPESCRIPT_FILENAME, 'r+b', 0) as TYPESCRIPT_FILE:
     data_to_send = ''
     while True:

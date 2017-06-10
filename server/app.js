@@ -37,9 +37,18 @@ d.run(function () {
               sessions[location.path] = [];
           }
           sessions[location.path].push(ws);
+          var viewingMessage = JSON.stringify({'type': 'viewcount', 'msg': sessions[location.path].length});
+          console.log('attach' + viewingMessage);
+          wss.broadcast(location.path, JSON.stringify({'type': 'viewcount', 'msg': sessions[location.path].length}));
           console.log('location: ' + location.path);
           ws.on('message', function incoming(message) {
             wss.broadcast(location.path, message);
+          });
+          ws.on('close', function() {
+              sessions[location.path] = sessions[location.path].filter(function(connection) { return connection !== ws });
+              var viewingMessage = JSON.stringify({'type': 'viewcount', 'msg': sessions[location.path].length});
+              console.log('detatch' + viewingMessage);
+              wss.broadcast(location.path, viewingMessage);
           });
 
         });
