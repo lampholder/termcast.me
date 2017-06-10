@@ -1,38 +1,31 @@
 """Script to establish websocket connection to the stream router."""
-import time
 import io
-import sys
+import os
+import json
+
+import requests
 from websocket import create_connection
+
+session = requests.get('http://localhost/init').json()
+os.environ['STREAM'] = session['session']
 
 # TODO: Sort all of the mingity sleeping rubbish; there must be a better way
 
 # FIXME: This should be in config somewhere
-HOST = 'wss://' + 'termcast.me'
+HOST = 'ws://' + 'localhost/' + session['session'] #'termcast.me'
 TYPESCRIPT_FILENAME = '/tmp/filename'
 
 LOCAL_ECHO = False
 
 WS = create_connection(HOST)
 
-with io.open(TYPESCRIPT_FILENAME, 'rb') as TYPESCRIPT_FILENAME:
-    THROTTLE = 0
+BUFFER_SIZE = 1024
+with io.open(TYPESCRIPT_FILENAME, 'r+b', 0) as TYPESCRIPT_FILE:
+    data_to_send = ''
     while True:
-        DATA = TYPESCRIPT_FILENAME.read()
-        if len(DATA) > 0:
-            while True:
-                try:
-                    if LOCAL_ECHO:
-                        sys.stdout.write(DATA)
-                        sys.stdout.flush()
-                    WS.send(DATA)
-                    break
-                except Exception:
-                    # FIXME: Make this a network connection exception, obvs
-                    # This is a super-clumsy effort to spin on a broken connection.
-                    print 'Connection broken; waiting to reestablish'
-                    time.sleep(10)
-            THROTTLE = 0
-        else:
-            THROTTLE += 1
-        if THROTTLE > 100:
-            time.sleep(0.1)
+        read_data = TYPESCRIPT_FILE.read(BUFFER_SIZE)
+        data_to_send += read_data
+        if len(read_data) < BUFFER_SIZE:
+            j = json.dumps({'type': 'stream', 'msg': data_to_send.decode('utf-8', 'replace')})
+            WS.send(j)
+            data_to_send = ''
