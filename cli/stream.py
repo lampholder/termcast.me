@@ -1,6 +1,5 @@
 """Script to establish websocket connection to the stream router."""
 import io
-import os
 import sys
 import json
 from threading import Thread
