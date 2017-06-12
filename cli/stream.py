@@ -7,36 +7,53 @@ from threading import Thread
 import requests
 from websocket import create_connection
 
-session = requests.get('http://localhost/init').json()
+class Host(object):
 
-template = ' https://termcast.me/%s [%d watchers]\n'
+    def __init__(self, domain, ssl=True):
+        self._ssl = ssl
+        self._domain = domain
 
-sys.stdout.write(template % (session['session'], 0))
+
+    def ws(self):
+        return 'ws%s://%s/' % ('s' if self._ssl else '',
+                               self._domain)
+
+    def http(self):
+        return 'http%s://%s/' % ('s' if self._ssl else '',
+                               self._domain)
+
+source = Host('localhost', ssl=False)
+
+session = requests.get(source.http() + 'init').json()
+session_id = session['session_id']
+
+template = ' ' + source.http() + '%s [%d watchers]\n'
+
+sys.stdout.write(template % (session_id, 0))
 sys.stdout.flush()
 
-# TODO: Sort all of the mingity sleeping rubbish; there must be a better way
-
 # FIXME: This should be in config somewhere
-HOST = 'ws://' + 'localhost/' + session['session'] #'termcast.me'
-TYPESCRIPT_FILENAME = '/tmp/filename'
+URL = source.ws() + session_id #'termcast.me'
+WS = create_connection(URL)
 
-LOCAL_ECHO = False
-
-WS = create_connection(HOST)
+TYPESCRIPT_FILENAME = sys.argv[1]
 
 BUFFER_SIZE = 1024
 
 def listener():
     while True:
         received = json.loads(WS.recv())
+        print "Python script received message of type '%s'" % received['type']
         if received['type'] == 'viewcount':
-            sys.stdout.write(template % (session['session'], received['msg']))
+            sys.stdout.write(template % (session_id, received['msg']))
             sys.stdout.flush()
 
 try:
     Thread(target=listener).start()
 except Exception, errtxt:
     print errtxt
+
+WS.send(json.dumps({'type': 'registerPublisher', 'msg': ''}));
 
 with io.open(TYPESCRIPT_FILENAME, 'r+b', 0) as TYPESCRIPT_FILE:
     data_to_send = ''

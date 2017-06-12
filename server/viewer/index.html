@@ -5,8 +5,8 @@
         <link type="text/css" rel="stylesheet" href="xterm.css" />
         <script type="text/javascript" src="xterm.js"></script>
         <script type="text/javascript">
-            var session = 'fixed';
-            var host = 'ws://localhost/' + session; // wss://termcast.me
+            var sessionId = window.location.pathname.substr(1).slice(0, -1);
+            var host = 'ws://localhost/' + sessionId; // wss://termcast.me
             document.addEventListener("DOMContentLoaded", function(event) {
                 var term = new Terminal();
                 term.open(document.getElementById('terminal'));
@@ -14,8 +14,8 @@
                 var ws = new WebSocket(host);
 
                 ws.onopen = function(event) {
-                    ws.send(JOSN.stringify({'type': 'status',
-                                            'msg': 'Web Viewer Connnected'}));
+                    ws.send(JSON.stringify({'type': 'registerSubscriber',
+                                            'msg': ''}));
                 };
 
                 ws.onmessage = function (event) {

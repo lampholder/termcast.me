@@ -4,66 +4,83 @@ const url = require('url');
 const WebSocket = require('ws');
 const RandomWords = require('random-words')
 
-var d = require('domain').create()
-d.on('error', function(err){
-    // handle the error safely
-    console.log(err)
-})
+const app = express();
 
-d.run(function () {
-        const app = express();
+var subscribers = {};
+var publishers = {};
 
-        var viewer = express.static('viewer');
+var viewer = express.static('viewer');
 
-        app.use('/init', function init(req, res) {
-            var id = RandomWords(1)[0];
-            var id = 'fixed';
-            app.use('/' + id, viewer);
-            res.send({'session': id});
-        });
+app.get('/init', function init(req, res) {
+    var sessionId = RandomWords(1)[0];
+    res.send({'session_id': sessionId});
+    subscribers[sessionId] = [];
+    app.use('/' + sessionId, viewer);
+});
 
-        const server = http.createServer(app);
-        const wss = new WebSocket.Server({ server });
+const server = http.createServer(app);
+const wss = new WebSocket.Server({ server });
 
-        //repl = require("repl")
-        //r = repl.start("node> ")
-        //r.context.wss = wss
-        //
-        var sessions = {};
+//repl = require("repl")
+//r = repl.start("node> ")
+//r.context.wss = wss
+//
 
-        wss.on('connection', function connection(ws, req) {
-          const location = url.parse(req.url, true);
-          if (!(location.path in sessions)) {
-              sessions[location.path] = [];
-          }
-          sessions[location.path].push(ws);
-          var viewingMessage = JSON.stringify({'type': 'viewcount', 'msg': sessions[location.path].length});
-          console.log('attach' + viewingMessage);
-          wss.broadcast(location.path, JSON.stringify({'type': 'viewcount', 'msg': sessions[location.path].length}));
-          console.log('location: ' + location.path);
-          ws.on('message', function incoming(message) {
-            wss.broadcast(location.path, message);
-          });
-          ws.on('close', function() {
-              sessions[location.path] = sessions[location.path].filter(function(connection) { return connection !== ws });
-              var viewingMessage = JSON.stringify({'type': 'viewcount', 'msg': sessions[location.path].length});
-              console.log('detatch' + viewingMessage);
-              wss.broadcast(location.path, viewingMessage);
-          });
+function guid() {
+  function s4() {
+    return Math.floor((1 + Math.random()) * 0x10000)
+      .toString(16)
+      .substring(1);
+  }
+  return s4() + s4() + '-' + s4() + '-' + s4() + '-' +
+    s4() + '-' + s4() + s4() + s4();
+}
 
-        });
-
-        // Broadcast to all.
-        wss.broadcast = function broadcast(session, data) {
-          var clients = sessions[session];
-          clients.forEach(function each(client) {
-            if (client.readyState === WebSocket.OPEN) {
-              client.send(data);
+wss.on('connection', function connection(ws, req) {
+    ws.uuid = guid();
+    const location = url.parse(req.url, true);
+    ws.on('message', function incoming(message) {
+        var sessionId = location.path.substr(1);
+        var session = subscribers[sessionId];
+        var j = JSON.parse(message);
+        if (j.type != 'stream') {
+            console.log(j.type + ': ' + j.msg);
+        }
+        if (j.type == 'registerPublisher') {
+            publishers[sessionId] = ws;
+            publishers[sessionId].send(JSON.stringify({'type': 'viewcount', 'msg': session.length}));
+            console.log('Publisher registered for stream "' + sessionId + '"');
+        }
+        if (j.type == 'stream') {
+            wss.broadcast(sessionId, JSON.stringify({'type': 'stream', 'msg': j.msg}));
+        }
+        if (j.type == 'registerSubscriber') {
+            session.push(ws);
+            if (sessionId in publishers && publishers[sessionId].readyState === WebSocket.OPEN) {
+                publishers[sessionId].send(JSON.stringify({'type': 'viewcount', 'msg': session.length}));
             }
-          });
-        };
+            console.log('Subscriber registered for stream "' + sessionId + '"; total now ' + session.length);
+            ws.on('close', function() {
+                console.log('Subscriber unregistered from stream "' + sessionId + '"; total now ' + session.length);
+                subscribers[sessionId] = subscribers[sessionId].filter(function(w) { return w.uuid !== ws.uuid; }); 
+                if (sessionId in publishers && publishers[sessionId].readyState === WebSocket.OPEN) {
+                    publishers[sessionId].send(JSON.stringify({'type': 'viewcount', 'msg': session.length}));
+                }
+            });
+        }
+    });
+});
 
-        server.listen(80, function listening() {
-          console.log('Listening on %d', server.address().port);
-        });
+// Broadcast to all.
+wss.broadcast = function broadcast(session, data) {
+    var clients = subscribers[session];
+    clients.forEach(function each(client) {
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(data);
+        }
+    });
+};
+
+server.listen(80, function listening() {
+  console.log('Listening on %d', server.address().port);
 });
