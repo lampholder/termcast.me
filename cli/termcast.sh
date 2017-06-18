@@ -26,9 +26,6 @@ mkfifo $fifo
 python stream.py $fifo > $output &
 tmux -S $tmux_socket -2 -f $tmux_config new script -q -t0 -F $fifo
 
-# This _might_ be redundant - killing the last tmux session might kill the server?
-tmux -S $tmux_socket kill-server
-
 rm -rf $tmux_socket
 rm -rf $fifo
 rm -rf $output
