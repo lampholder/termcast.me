@@ -23,7 +23,6 @@ class Host(object):
                                self._domain)
 
 source = Host('termcast.me', ssl=True)
-source = Host('localhost', ssl=False)
 
 session = requests.get(source.http() + 'init').json()
 session_id = session['session_id']
