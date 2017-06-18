@@ -6,7 +6,7 @@ uuid=`cat /dev/urandom | env LC_CTYPE=C tr -cd 'a-f0-9' | head -c 32`
 fifo="/tmp/termcast.fifo.$uuid"
 tmux_config="/tmp/termcast.tmux_config.$uuid"
 output="/tmp/termcast.output.$uuid"
-tmux_socket="$uuid"
+tmux_socket="/tmp/termcast.socket.$uuid"
 
 cat >$tmux_config <<EOL
 unbind C-b
@@ -24,8 +24,12 @@ EOL
 
 mkfifo $fifo
 python stream.py $fifo > $output &
-tmux -L $tmux_socket -2 -f $tmux_config new script -t0 -F $fifo
+tmux -S $tmux_socket -2 -f $tmux_config new script -q -t0 -F $fifo
 
+# This _might_ be redundant - killing the last tmux session might kill the server?
+tmux -S $tmux_socket kill-server
+
+rm -rf $tmux_socket
 rm -rf $fifo
 rm -rf $output
 rm -rf $tmux_config
