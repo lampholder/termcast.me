@@ -22,6 +22,7 @@ class Host(object):
         return 'http%s://%s/' % ('s' if self._ssl else '',
                                self._domain)
 
+source = Host('termcast.me', ssl=True)
 source = Host('localhost', ssl=False)
 
 session = requests.get(source.http() + 'init').json()
@@ -43,7 +44,6 @@ BUFFER_SIZE = 1024
 def listener():
     while True:
         received = json.loads(WS.recv())
-        print "Python script received message of type '%s'" % received['type']
         if received['type'] == 'viewcount':
             sys.stdout.write(template % (session_id, received['msg']))
             sys.stdout.flush()
