@@ -61,6 +61,9 @@ wss.on('connection', function connection(ws, req) {
         if (j.type == 'stream') {
             wss.broadcast(sessionId, JSON.stringify({'type': 'stream', 'msg': j.msg}));
         }
+        if (j.type == 'resize') {
+            wss.broadcast(sessionId, JSON.stringify({'type': 'resize', 'width': j.width, 'height': j.height}));
+        }
         if (j.type == 'registerSubscriber') {
             session.push(ws);
             if (sessionId in publishers && publishers[sessionId].readyState === WebSocket.OPEN) {
