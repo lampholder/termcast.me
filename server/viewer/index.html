@@ -6,7 +6,7 @@
         <script type="text/javascript" src="xterm.js"></script>
         <script type="text/javascript">
             var sessionId = window.location.pathname.substr(1).slice(0, -1);
-            var host = 'ws://localhost/' + sessionId; // wss://termcast.me
+            var host = 'wss://termcast.me/' + sessionId; // wss://termcast.me
             document.addEventListener("DOMContentLoaded", function(event) {
                 var term = new Terminal();
                 term.open(document.getElementById('terminal'));
@@ -38,6 +38,6 @@
         </script>
     </head>
     <body>
-        <div id="terminal"></div>
+        <span id="terminal"></span>
     </body>
 </html>
