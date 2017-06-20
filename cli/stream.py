@@ -2,6 +2,7 @@
 import io
 import sys
 import json
+import curses
 from threading import Thread
 
 import requests
@@ -22,6 +23,7 @@ class Host(object):
         return 'http%s://%s/' % ('s' if self._ssl else '',
                                self._domain)
 
+
 source = Host('termcast.me', ssl=True)
 
 session = requests.get(source.http() + 'init').json()
@@ -37,6 +39,8 @@ URL = source.ws() + session_id #'termcast.me'
 WS = create_connection(URL)
 
 TYPESCRIPT_FILENAME = sys.argv[1]
+HEIGHT = sys.argv[2]
+WIDTH = sys.argv[3]
 
 BUFFER_SIZE = 1024
 
@@ -50,13 +54,20 @@ def listener():
 try:
     Thread(target=listener).start()
 except Exception, errtxt:
-    print errtxt
+    sys.stderr.write(errtxt)
+    sys.stderr.write('I died')
+
 
 WS.send(json.dumps({'type': 'registerPublisher', 'msg': ''}));
+WS.send(json.dumps({'type': 'resize', 'height': HEIGHT, 'width': WIDTH}));
 
 with io.open(TYPESCRIPT_FILENAME, 'r+b', 0) as TYPESCRIPT_FILE:
     data_to_send = ''
     while True:
+        #if curses.is_term_resized(height, width):
+        #    pass
+            #height, width = screen.getmaxyx()
+            #WS.send(json.dumps({'type': 'resize', 'width': width, 'height': height}))
         read_data = TYPESCRIPT_FILE.read(BUFFER_SIZE)
         data_to_send += read_data
         if len(read_data) < BUFFER_SIZE:
