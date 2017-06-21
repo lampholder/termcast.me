@@ -59,7 +59,7 @@ except Exception, errtxt:
 
 
 WS.send(json.dumps({'type': 'registerPublisher', 'msg': ''}));
-WS.send(json.dumps({'type': 'resize', 'height': HEIGHT, 'width': WIDTH}));
+WS.send(json.dumps({'type': 'resize', 'height': int(HEIGHT), 'width': int(WIDTH)}));
 
 with io.open(TYPESCRIPT_FILENAME, 'r+b', 0) as TYPESCRIPT_FILE:
     data_to_send = ''
