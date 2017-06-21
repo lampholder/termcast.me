@@ -6,16 +6,25 @@ const RandomWords = require('random-words')
 
 const app = express();
 
+app.set('views', './views');
+app.set('view engine', 'pug');
+
 var subscribers = {};
 var publishers = {};
 
-var viewer = express.static('viewer');
+var publishers_termsizes = {};
+
+app.use('/static', express.static('static'));
 
 app.get('/init', function init(req, res) {
     var sessionId = RandomWords(1)[0];
     res.send({'session_id': sessionId});
     subscribers[sessionId] = [];
-    app.use('/' + sessionId, viewer);
+    publishers_termsizes[sessionId] = {'width': 0, 'height': 0};
+    app.use('/' + sessionId, function(req, res) {
+        var dimensions = publishers_termsizes[sessionId];
+        res.render('index', {'height': dimensions.height, 'width': dimensions.width}); 
+    });
 });
 
 app.get('/', function(req, res) {
@@ -27,11 +36,6 @@ app.get('/', function(req, res) {
 
 const server = http.createServer(app);
 const wss = new WebSocket.Server({ server });
-
-//repl = require("repl")
-//r = repl.start("node> ")
-//r.context.wss = wss
-//
 
 function guid() {
   function s4() {
@@ -48,7 +52,9 @@ wss.on('connection', function connection(ws, req) {
     const location = url.parse(req.url, true);
     ws.on('message', function incoming(message) {
         var sessionId = location.path.substr(1);
+        console.log('sessionId = ' + sessionId);
         var session = subscribers[sessionId];
+        console.log(subscribers[sessionId]);
         var j = JSON.parse(message);
         if (j.type != 'stream') {
             console.log(j.type + ': ' + j.msg);
@@ -62,6 +68,8 @@ wss.on('connection', function connection(ws, req) {
             wss.broadcast(sessionId, JSON.stringify({'type': 'stream', 'msg': j.msg}));
         }
         if (j.type == 'resize') {
+            console.log(j);
+            publishers_termsizes[sessionId] = {'width': j.width, 'height': j.height};
             wss.broadcast(sessionId, JSON.stringify({'type': 'resize', 'width': j.width, 'height': j.height}));
         }
         if (j.type == 'registerSubscriber') {

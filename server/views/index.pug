@@ -1,43 +1,41 @@
-<!doctype html>
-<html>
-    <head>
-        <title>Termcast terminal viewer.</title>
-        <link type="text/css" rel="stylesheet" href="xterm.css" />
-        <script type="text/javascript" src="xterm.js"></script>
-        <script type="text/javascript">
-            var sessionId = window.location.pathname.substr(1).slice(0, -1);
-            var host = 'wss://termcast.me/' + sessionId; // wss://termcast.me
-            document.addEventListener("DOMContentLoaded", function(event) {
-                var term = new Terminal();
-                term.open(document.getElementById('terminal'));
+doctype html
+html(lang="en")
+  head
+    title="Termcast Terminal Viewer"
+    script(type='text/javascript', src='/static/xterm.js')
+    link(type='text/css', rel='stylesheet', href='/static/xterm.css')
+    script(type='text/javascript').
+      var sessionId = window.location.pathname.substr(1); //.slice(0, -1);
+      var host = 'wss://termcast.me/' + sessionId;
+      document.addEventListener("DOMContentLoaded", function(event) {
+        var term = new Terminal();
+        term.open(document.getElementById('terminal'));
 
-                var ws = new WebSocket(host);
+        term.resize(#{width}, #{height});
 
-                ws.onopen = function(event) {
-                    ws.send(JSON.stringify({'type': 'registerSubscriber',
-                                            'msg': ''}));
-                };
+        var ws = new WebSocket(host);
 
-                ws.onmessage = function (event) {
-                    var packet = JSON.parse(event.data);
-                    switch(packet.type) {
-                        case 'status':
-                            console.log(packet.msg);
-                            break;
-                        case 'stream':
-                            term.write(packet.msg);
-                            break;
-                        case 'viewcount':
-                            break;
-                        case 'resize':
-                            term.resize(width, height);
-                            break;
-                    }
-                };
-            });
-        </script>
-    </head>
-    <body>
-        <span id="terminal"></span>
-    </body>
-</html>
+        ws.onopen = function(event) {
+            ws.send(JSON.stringify({'type': 'registerSubscriber',
+        			    'msg': ''}));
+        };
+
+        ws.onmessage = function (event) {
+            var packet = JSON.parse(event.data);
+            switch(packet.type) {
+        	case 'status':
+        	    console.log(packet.msg);
+        	    break;
+        	case 'stream':
+        	    term.write(packet.msg);
+        	    break;
+        	case 'viewcount':
+        	    break;
+        	case 'resize':
+        	    term.resize(width, height);
+        	    break;
+            }
+        };
+      });
+  body
+    span(id='terminal')
