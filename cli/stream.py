@@ -2,7 +2,7 @@
 import io
 import sys
 import json
-import curses
+import time
 from threading import Thread
 
 import requests
@@ -26,7 +26,12 @@ class Host(object):
 
 source = Host('termcast.me', ssl=True)
 
-session = requests.get(source.http() + 'init').json()
+try:
+    session = requests.get(source.http() + 'init').json()
+except Exception:
+    sys.stderr.write('Could not connect to server')
+    exit(1)
+
 session_id = session['session_id']
 
 template = ' ' + source.http() + '%s [%d watchers]\n'
@@ -46,28 +51,39 @@ BUFFER_SIZE = 1024
 
 def listener():
     while True:
-        received = json.loads(WS.recv())
-        if received['type'] == 'viewcount':
-            sys.stdout.write(template % (session_id, received['msg']))
+        try:
+            received = json.loads(WS.recv())
+            if received['type'] == 'viewcount':
+                sys.stdout.write(template % (session_id, received['msg']))
+                sys.stdout.flush()
+        except Exception:
+            sys.stdout.write('Connection interrupted :(\n');
             sys.stdout.flush()
+            time.sleep(30)
 
-try:
-    Thread(target=listener).start()
-except Exception, errtxt:
-    sys.stderr.write(errtxt)
-    sys.stderr.write('I died')
+t = Thread(target=listener)
+t.daemon = True
+t.start()
 
+def keep_alive():
+    while True:
+        try:
+            WS.send(json.dumps({'type': 'keepAlive'}))
+        except Exception:
+            sys.stdout.write('Connection interrupted :(\n')
+            sys.stdout.flush()
+        time.sleep(30)
 
-WS.send(json.dumps({'type': 'registerPublisher', 'msg': ''}));
-WS.send(json.dumps({'type': 'resize', 'height': int(HEIGHT), 'width': int(WIDTH)}));
+t = Thread(target=keep_alive)
+t.daemon = True
+t.start()
+
+WS.send(json.dumps({'type': 'registerPublisher', 'msg': ''}))
+WS.send(json.dumps({'type': 'resize', 'height': int(HEIGHT), 'width': int(WIDTH)}))
 
 with io.open(TYPESCRIPT_FILENAME, 'r+b', 0) as TYPESCRIPT_FILE:
     data_to_send = ''
     while True:
-        #if curses.is_term_resized(height, width):
-        #    pass
-            #height, width = screen.getmaxyx()
-            #WS.send(json.dumps({'type': 'resize', 'width': width, 'height': height}))
         read_data = TYPESCRIPT_FILE.read(BUFFER_SIZE)
         data_to_send += read_data
         if len(read_data) < BUFFER_SIZE:

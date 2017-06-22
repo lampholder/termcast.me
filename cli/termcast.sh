@@ -12,8 +12,8 @@ height=`tput lines`
 width=`tput cols`
 
 cat >$tmux_config <<EOL
-unbind C-b
-set -g prefix M-P # None for tmux >= 2.2
+#unbind C-b
+#set -g prefix M-P # None for tmux >= 2.2
 
 set-option -g status-left-length 70
 set -g status-left '#(tail -n1 $output)'
@@ -29,6 +29,7 @@ EOL
 
 mkfifo $fifo
 python stream.py $fifo $height $width > $output &
+STREAM_PID=$!
 tmux -S $tmux_socket -2 -f $tmux_config new script -q -t0 -F $fifo
 
 rm -rf $tmux_socket
