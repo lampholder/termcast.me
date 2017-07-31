@@ -57,17 +57,17 @@
         publishers: {},
         subscribers: {},
         subscribe: function(sessionId, websocket) {
-            if (!(sessionId in self.subscribers)) {
-                self.subscribers[sessionId] = [];
+            if (!(sessionId in this.subscribers)) {
+                this.subscribers[sessionId] = [];
             }
-            self.subscribers[sessionId].push(websocket);
+            this.subscribers[sessionId].push(websocket);
         },
         unsubscribe: function(sessionId, websocket) {
-            self.subscribers[sessionId] = self.subscribers[sessionId].filter(function(s) { return s.uuid !== websocket.uuid; });
+            this.subscribers[sessionId] = this.subscribers[sessionId].filter(function(s) { return s.uuid !== websocket.uuid; });
         },
         registerPublisher: function(sessionId, websocket) {
             //TODO: put some stuff in here to verify we're the right publisher.
-            self.publishers[sessionId] = websocket;
+            this.publishers[sessionId] = websocket;
         }
     };
 
@@ -78,11 +78,8 @@
                 response.send({session_id: sessionId,
                                width: request.query.width,
                                height: request.query.height});
-                //subscribers[sessionId] = [];
-                //publishers_termsizes[sessionId] = {'width': 0, 'height': 0};
                 app.use('/' + sessionId, function(req, res) {
-                    var dimensions = publishers_termsizes[sessionId];
-                    res.render('index', {'height': dimensions.height, 'width': dimensions.width}); 
+                    res.render('index', {'height': request.query.height, 'width': request.query.width}); 
                 });
             }
         );
@@ -98,12 +95,13 @@
                  ' your terminal session with the internet intuitively and greatly for fun and profit!</p>');
     });
 
-    const httpServer = http.createServer(app);
-    const websocketServer = new WebSocket.Server({ httpServer });
+    const server = http.createServer(app);
+    const websocketServer = new WebSocket.Server({ server });
 
     // Broadcast to everyone in a session.
     websocketServer.broadcast = function broadcast(sessionId, message) {
-        var clients = connectionManager.subscribers[sessionId];
+        var clients = sessionId in connectionManager.subscribers ?
+                      connectionManager.subscribers[sessionId] : [];
         clients.forEach(function each(client) {
             if (client.readyState === WebSocket.OPEN) {
                 client.send(message);
@@ -123,12 +121,11 @@
         }
 
         websocket.uuid = guid();
-        var location = url.parse(req.url, true);
+        var location = url.parse(request.url, true);
 
         websocket.on('message', function incoming(msg) {
             var message = JSON.parse(msg);
             var sessionId = location.path.substr(1);
-            var session = subscribers[sessionId];
 
             if (message.type != 'stream') {
                 console.log(message.type + ': ' + message.body);
@@ -137,8 +134,20 @@
             switch(message.type) {
                 case 'registerPublisher':
                     connectionManager.registerPublisher(sessionId, websocket);
-                    publishers[sessionId].send(JSON.stringify({'type': 'viewcount', 'msg': session.length}));
+
+                    // Notify the publisher that they've got a new subscriber (this doesn't belong here)
+                    if (sessionId in connectionManager.publishers &&
+                        connectionManager.publishers[sessionId].readyState === WebSocket.OPEN) {
+                        var count = sessionId in connectionManager.subscribers ?
+                                    connectionManager.subscribers[sessionId].length : 0;
+                        connectionManager.publishers[sessionId].send(
+                                JSON.stringify({type: 'viewcount',
+                                                body: count}));
+                    }
                     console.log('Publisher registered for stream "' + sessionId + '"');
+                    break;
+                case 'keepAlive':
+                    websocketServer.broadcast(sessionId, JSON.stringify(message));
                     break;
                 case 'stream':
                     websocketServer.broadcast(sessionId, JSON.stringify(message));
@@ -149,22 +158,26 @@
                     // Notify the publisher that they've got a new subscriber (this doesn't belong here)
                     if (sessionId in connectionManager.publishers &&
                         connectionManager.publishers[sessionId].readyState === WebSocket.OPEN) {
-                        connectionManager.publisers[sessionId].send(
+                        var count = sessionId in connectionManager.subscribers ?
+                                    connectionManager.subscribers[sessionId].length : 0;
+                        connectionManager.publishers[sessionId].send(
                                 JSON.stringify({type: 'viewcount',
-                                                body: connectionManager.subscribers[sessionId].length}));
+                                                body: count}));
                     }
 
                     websocket.on('close', function() {
                         console.log('Subscriber unregistered from stream "' + sessionId);
                         connectionManager.unsubscribe(sessionId, websocket);
 
-                        // Notify the publisher that they've lost a subscriber (this doesn't belong here)
-                        if (sessionId in connectionManager.publishers &&
-                            connectionManager.publishers[sessionId].readyState === WebSocket.OPEN) {
-                            connectionManager.publisers[sessionId].send(
-                                    JSON.stringify({type: 'viewcount',
-                                                    body: connectionManager.subscribers[sessionId].length}));
-                        }
+			    // Notify the publisher that they've got a new subscriber (this doesn't belong here)
+			    if (sessionId in connectionManager.publishers &&
+				connectionManager.publishers[sessionId].readyState === WebSocket.OPEN) {
+				var count = sessionId in connectionManager.subscribers ?
+					    connectionManager.subscribers[sessionId].length : 0;
+				connectionManager.publishers[sessionId].send(
+					JSON.stringify({type: 'viewcount',
+							body: count}));
+			    }
                     });
                     break;
             }
@@ -172,8 +185,8 @@
     });
 
 
-    httpServer.listen(80, function listening() {
-      console.log('Listening on %d', httpServer.address().port);
+    server.listen(80, function listening() {
+        console.log('Listening on %d', server.address().port);
     });
 
 }());
