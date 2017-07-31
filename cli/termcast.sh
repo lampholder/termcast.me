@@ -8,8 +8,15 @@ tmux_config="/tmp/termcast.tmux_config.$uuid"
 output="/tmp/termcast.output.$uuid"
 tmux_socket="/tmp/termcast.socket.$uuid"
 
-height=`tput lines`
-width=`tput cols`
+if [ $# -eq 0 ]
+then
+    width=`tput cols`
+    height=`tput lines`
+else
+    width=$1
+    height=$2
+fi
+
 
 cat >$tmux_config <<EOL
 #unbind C-b
