@@ -54,7 +54,7 @@ def listener():
         try:
             received = json.loads(WS.recv())
             if received['type'] == 'viewcount':
-                sys.stdout.write(template % (session_id, received['msg']))
+                sys.stdout.write(template % (session_id, received['body']))
                 sys.stdout.flush()
         except Exception:
             sys.stdout.write('Connection interrupted :(\n');
@@ -78,7 +78,7 @@ t = Thread(target=keep_alive)
 t.daemon = True
 t.start()
 
-WS.send(json.dumps({'type': 'registerPublisher', 'msg': ''}))
+WS.send(json.dumps({'type': 'registerPublisher', 'body': ''}))
 WS.send(json.dumps({'type': 'resize', 'height': int(HEIGHT), 'width': int(WIDTH)}))
 
 with io.open(TYPESCRIPT_FILENAME, 'r+b', 0) as TYPESCRIPT_FILE:
@@ -87,6 +87,6 @@ with io.open(TYPESCRIPT_FILENAME, 'r+b', 0) as TYPESCRIPT_FILE:
         read_data = TYPESCRIPT_FILE.read(BUFFER_SIZE)
         data_to_send += read_data
         if len(read_data) < BUFFER_SIZE:
-            j = json.dumps({'type': 'stream', 'msg': data_to_send.decode('utf-8', 'replace')})
+            j = json.dumps({'type': 'stream', 'body': data_to_send.decode('utf-8', 'replace')})
             WS.send(j)
             data_to_send = ''
