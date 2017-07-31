@@ -26,28 +26,30 @@ class Host(object):
 
 source = Host('termcast.me', ssl=True)
 
+TYPESCRIPT_FILENAME = sys.argv[1]
+HEIGHT = sys.argv[2]
+WIDTH = sys.argv[3]
+
+BUFFER_SIZE = 1024
+
+
 try:
-    session = requests.get(source.http() + 'init').json()
+    session = requests.get(source.http() + 'init?width=%s&height=%s' % (WIDTH, HEIGHT)).json()
 except Exception:
     sys.stderr.write('Could not connect to server')
     exit(1)
 
 session_id = session['session_id']
 
+# FIXME: This should be in config somewhere
+URL = source.ws() + session_id #'termcast.me'
+WS = create_connection(URL)
+
 template = ' ' + source.http() + '%s [%d watchers]\n'
 
 sys.stdout.write(template % (session_id, 0))
 sys.stdout.flush()
 
-# FIXME: This should be in config somewhere
-URL = source.ws() + session_id #'termcast.me'
-WS = create_connection(URL)
-
-TYPESCRIPT_FILENAME = sys.argv[1]
-HEIGHT = sys.argv[2]
-WIDTH = sys.argv[3]
-
-BUFFER_SIZE = 1024
 
 def listener():
     while True:
