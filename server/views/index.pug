@@ -17,17 +17,17 @@ html(lang="en")
 
         ws.onopen = function(event) {
             ws.send(JSON.stringify({'type': 'registerSubscriber',
-        			    'msg': ''}));
+        			    'body': ''}));
         };
 
         ws.onmessage = function (event) {
             var packet = JSON.parse(event.data);
             switch(packet.type) {
         	case 'status':
-        	    console.log(packet.msg);
+        	    console.log(packet.body);
         	    break;
         	case 'stream':
-        	    term.write(packet.msg);
+        	    term.write(packet.body);
         	    break;
         	case 'viewcount':
         	    break;
