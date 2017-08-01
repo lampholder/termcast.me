@@ -39,7 +39,7 @@ except Exception:
     sys.stderr.write('Could not connect to server')
     exit(1)
 
-session_id = session['session_id']
+session_id = session['id']
 
 # FIXME: This should be in config somewhere
 URL = source.ws() + session_id #'termcast.me'
