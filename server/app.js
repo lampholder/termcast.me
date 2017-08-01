@@ -122,17 +122,17 @@
         publishers: {},
         subscribers: {},
         subscribe: function(sessionId, websocket) {
-            if (!(sessionId in self.subscribers)) {
-                self.subscribers[sessionId] = [];
+            if (!(sessionId in this.subscribers)) {
+                this.subscribers[sessionId] = [];
             }
-            self.subscribers[sessionId].push(websocket);
+            this.subscribers[sessionId].push(websocket);
         },
         unsubscribe: function(sessionId, websocket) {
-            self.subscribers[sessionId] = self.subscribers[sessionId].filter(function(s) { return s.uuid !== websocket.uuid; });
+            this.subscribers[sessionId] = this.subscribers[sessionId].filter(function(s) { return s.uuid !== websocket.uuid; });
         },
         registerPublisher: function(sessionId, websocket) {
             //TODO: put some stuff in here to verify we're the right publisher.
-            self.publishers[sessionId] = websocket;
+            this.publishers[sessionId] = websocket;
         }
     };
 
@@ -165,9 +165,9 @@
     });
 
     const server = http.createServer(app);
-    const wss = new WebSocket.Server({ server });
+    const websocketServer = new WebSocket.Server({ server });
 
-    wss.on('connection', function connection(websocket, request) {
+    websocketServer.on('connection', function connection(websocket, request) {
         function guid() {
             function s4() {
                 return Math.floor((1 + Math.random()) * 0x10000).toString(16).substring(1);
@@ -177,7 +177,7 @@
         }
 
         websocket.uuid = guid();
-        var location = url.parse(req.url, true);
+        var location = url.parse(request.url, true);
 
         websocket.on('message', function incoming(msg) {
             var message = JSON.parse(msg);
@@ -192,6 +192,9 @@
                     session.publisher(websocket, 'abc123');
                     session.publisher().send(JSON.stringify({'type': 'viewcount', 'msg': session.length}));
                     console.log('Publisher registered for stream "' + session.id + '"');
+                    break;
+                case 'keepAlive':
+                    websocketServer.broadcast(sessionId, JSON.stringify(message));
                     break;
                 case 'stream':
                     session.broadcast(message);
@@ -209,7 +212,7 @@
 
 
     server.listen(80, function listening() {
-      console.log('Listening on %d', server.address().port);
+        console.log('Listening on %d', server.address().port);
     });
 
 }());
