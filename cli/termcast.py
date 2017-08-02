@@ -1,4 +1,4 @@
-#!/usr/local/bin/python
+#!/usr/bin/python
 """Docstrings are cool"""
 import io
 import os
@@ -14,7 +14,7 @@ import requests
 from websocket import create_connection
 
 class Host(object):
-    """Wat"""
+    """This feels overengineered"""
 
     def __init__(self, domain, ssl=True):
         self._ssl = ssl
@@ -31,6 +31,8 @@ class Host(object):
 
 def stream(width, height, fifo, output):
     """Stream"""
+
+    #TODO: This should be in a config file.
     host = Host('termcast.me', ssl=True)
     buffer_size = 1024
 
@@ -81,6 +83,7 @@ def stream(width, height, fifo, output):
             data_to_send += read_data
             if len(read_data) < buffer_size:
                 j = json.dumps({'type': 'stream',
+                                'token': session['token'],
                                 'body': data_to_send.decode('utf-8', 'replace')})
                 ws.send(j)
                 data_to_send = ''
