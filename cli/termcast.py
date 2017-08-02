@@ -1,11 +1,13 @@
+#!/usr/local/bin/python
 """Docstrings are cool"""
 import io
 import os
 import time
 import uuid
 import json
-import subprocess
 import argparse
+import platform
+import subprocess
 from threading import Thread
 
 import requests
@@ -126,8 +128,13 @@ def do_the_needful():
     stream_thread.daemon = True
     stream_thread.start()
 
+    if platform.system() == 'Darwin':
+        flush = '-F'
+    else:
+        flush = '-f'
+
     subprocess.call(['tmux', '-S', tmux_socket, '-2', '-f', tmux_config,
-                     'new', 'script', '-q', '-t0', '-F', fifo])
+                     'new', 'script', '-q', '-t0', flush, fifo])
 
 
     for f in [fifo, tmux_config, output, tmux_socket]:
