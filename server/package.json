@@ -5,6 +5,7 @@
   "main": "app.js",
   "dependencies": {
     "express": "^4.15.3",
+    "hat": "0.0.3",
     "monkeypatch": "^1.0.0",
     "promise": "^8.0.1",
     "pug": "^2.0.0-rc.2",
