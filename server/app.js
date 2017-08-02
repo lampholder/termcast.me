@@ -7,6 +7,7 @@
     const WebSocket = require('ws');
     const RandomWords = require('random-words');
     const sqlite3 = require('sqlite3').verbose();
+    const hat = require('hat');
     const app = express();
 
     app.set('views', './views');
@@ -17,41 +18,45 @@
     function SessionManager() {
 
         function Session(id, token, width, height) {
-            console.log('creating new session obj');
             this.id = function() { return id; };
             this.token = function() { return token; };
             this.width = function() { return width; };
             this.height = function() { return height; };
 
-            var sendSubscriberCount = function() {
-                if (this.publisher() != null &&
-                    this.publisher().readyState === WebSocket.OPEN) {
-                    this.publisher().send(JSON.stringify({type: 'viewcount',
-                                                          body: this.subscribers().length}));
-                }
-            };
-
             var publisher = null;
             this.publisher = function(pub, token) {
-                if (pub === null) {
+                console.log('Registering publisher ' + token + ' =?= ' + this.token());
+                if (pub === undefined) {
                     return publisher;
                 }
                 else if (token === this.token()) {
-                     publisher = pub;
-                     sendSubscriberCount();
+                    publisher = pub;
+                    sendSubscriberCount();
+                }
+            };
+
+            var self = this;
+            var sendSubscriberCount = function() {
+                console.log('Sending subscriber count ' + self.publisher());
+                if (self.publisher() != null &&
+                    self.publisher().readyState === WebSocket.OPEN) {
+                    self.publisher().send(JSON.stringify({type: 'viewcount',
+                                                          body: subscribers.length}));
                 }
             };
 
             var subscribers = [];
             this.subscribe = function(subscriber) {
-                if (!(subscriber in subscribers)) {
-                    subcribers.push(subscriber);
+                if (subscribers.indexOf(subscriber) === -1) {
+                    subscribers.push(subscriber);
+                    console.log('Adding ' + subscriber.uuid + ' Total: ' + subscribers.length);
                     sendSubscriberCount();
                 }
             };
             this.unsubscribe = function(subscriber) {
-                if (subscriber in subscribers) {
-                    subscribers = subscribers.filter(function(s) { return s.uuid !== websocket.uuid; });
+                if (subscribers.indexOf(subscriber) !== -1) {
+                    subscribers = subscribers.filter(function(s) { return s.uuid !== subscriber.uuid; });
+                    console.log('Removing ' + subscriber.uuid + ' Total: ' + subscribers.length);
                     sendSubscriberCount();
                 }
             };
@@ -61,6 +66,9 @@
                 subscribers.forEach(function each(subscriber) {
                     if (subscriber.readyState === WebSocket.OPEN) {
                         subscriber.send(string_data);
+                    }
+                    else {
+                        console.log(subscriber.uuid + ' - ' + subscriber.readyState);
                     }
                 });
             };
@@ -90,7 +98,7 @@
             return connection;
         }();
 
-        this.registerSession = function(width, height) {
+        this.registerSession = function(width, height, token) {
             return new Promise(function(fullfil, reject) {
                 (function myself() {
                     var sessionId = RandomWords(1)[0];
@@ -101,8 +109,8 @@
                                     if (row.total == 0) {
                                         var stmt = db.prepare('insert into sessions (sessionId, width, height) values (?, ?, ?)');
                                         stmt.run(sessionId, width, height);
-                                        var session = new Session(sessionId, 'abc123', width, height);
-                                        sessions[session.id] = session;
+                                        var session = new Session(sessionId, token, width, height);
+                                        sessions[session.id()] = session;
                                         console.log('session created');
                                         fullfil(session);
                                     }
@@ -118,27 +126,9 @@
 
     var sessionManager = new SessionManager();
 
-    var connectionManager = {
-        publishers: {},
-        subscribers: {},
-        subscribe: function(sessionId, websocket) {
-            if (!(sessionId in this.subscribers)) {
-                this.subscribers[sessionId] = [];
-            }
-            this.subscribers[sessionId].push(websocket);
-        },
-        unsubscribe: function(sessionId, websocket) {
-            this.subscribers[sessionId] = this.subscribers[sessionId].filter(function(s) { return s.uuid !== websocket.uuid; });
-        },
-        registerPublisher: function(sessionId, websocket) {
-            //TODO: put some stuff in here to verify we're the right publisher.
-            this.publishers[sessionId] = websocket;
-        }
-    };
-
     app.get('/init', function init(request, response) {
-        //TODO: need to have an optional token in here
-        sessionManager.registerSession(request.query.width, request.query.height).then(
+        var token = (request.query.token != undefined ? request.query.token : hat());
+        sessionManager.registerSession(request.query.width, request.query.height, token).then(
             function(session) {
                 response.send({id: session.id(),
                                token: session.token(),
@@ -146,8 +136,7 @@
                                height: session.height()
                 });
                 app.use('/' + session.id(), function(req, res) {
-                    var dimensions = publishers_termsizes[session.id()];
-                    res.render('index', {'height': dimensions.height, 'width': dimensions.width}); 
+                    res.render('index', {'height': session.height(), 'width': session.width()}); 
                 });
             }
         );
@@ -189,20 +178,23 @@
 
             switch(message.type) {
                 case 'registerPublisher':
-                    session.publisher(websocket, 'abc123');
-                    session.publisher().send(JSON.stringify({'type': 'viewcount', 'msg': session.length}));
-                    console.log('Publisher registered for stream "' + session.id + '"');
+                    if (message.token === session.token()) {
+                        session.publisher(websocket, message.token);
+                    }
                     break;
                 case 'keepAlive':
-                    websocketServer.broadcast(sessionId, JSON.stringify(message));
+                    if (message.token === session.token()) {
+                        session.broadcast(message);
+                    }
                     break;
                 case 'stream':
-                    session.broadcast(message);
+                    if (message.token === session.token()) {
+                        session.broadcast(message);
+                    }
                     break;
                 case 'registerSubscriber':
                     session.subscribe(websocket);
                     websocket.on('close', function() {
-                        console.log('Subscriber unregistered from stream "' + session.id);
                         session.unsubscribe(websocket);
                     });
                     break;
