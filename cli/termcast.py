@@ -74,7 +74,9 @@ def stream(width, height, fifo, output):
     keep_alive_thread.daemon = True
     keep_alive_thread.start()
 
-    ws.send(json.dumps({'type': 'registerPublisher', 'body': ''}))
+    ws.send(json.dumps({'type': 'registerPublisher',
+                        'token': session['token'],
+                        'body': ''}))
 
     with io.open(fifo, 'r+b', 0) as typescript_fifo:
         data_to_send = ''
