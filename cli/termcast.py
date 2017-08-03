@@ -29,14 +29,11 @@ class Host(object):
         return 'http%s://%s/' % ('s' if self._ssl else '', self._domain)
 
 
-def stream(width, height, fifo, output):
+def stream(host, session, fifo, output):
     """Stream"""
 
     #TODO: This should be in a config file.
-    host = Host('termcast.me', ssl=True)
     buffer_size = 1024
-
-    session = requests.get(host.http() + 'init?width=%s&height=%s' % (width, height)).json()
 
     url = host.ws() + session['id']
     ws = create_connection(url)
@@ -95,6 +92,8 @@ def do_the_needful():
     parser = argparse.ArgumentParser()
     parser.add_argument('--width', type=int, default=None)
     parser.add_argument('--height', type=int, default=None)
+    parser.add_argument('--token', default=None)
+    parser.add_argument('--session', default=None)
     args = parser.parse_args()
 
     unique_id = uuid.uuid4()
@@ -128,8 +127,22 @@ def do_the_needful():
     # This gubbins sets up the fifo
     subprocess.call(['mkfifo', fifo])
 
+    # Get the session details
+    host = Host('termcast.me', ssl=True)
+    if args.session is not None and args.token is not None:
+        session = {'id': args.session,
+                   'token': args.token,
+                   'width': width,
+                   'height': height}
+    else:
+        try:
+            session = requests.get(host.http() + 'init?width=%s&height=%s' % (width, height)).json()
+            print session['token']
+        except Exception:
+            exit(1)
+
     # This needs replacing with the contents of stream.py
-    stream_thread = Thread(target=stream, args=(width, height, fifo, output))
+    stream_thread = Thread(target=stream, args=(host, session, fifo, output))
     stream_thread.daemon = True
     stream_thread.start()
 
@@ -144,6 +157,8 @@ def do_the_needful():
 
     for f in [fifo, tmux_config, output, tmux_socket]:
         os.remove(f)
+
+    print session['id'], session['token']
 
 if __name__ == "__main__":
     do_the_needful()
