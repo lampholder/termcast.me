@@ -94,7 +94,6 @@
                                else {
                                    var session = new Session(row.sessionId, row.token, row.width, row.height);
                                    sessions[sessionId] = session;
-                                   routeSession(session);
                                    fullfil(session);
                                }
                            });
@@ -111,13 +110,6 @@
             return connection;
         }();
 
-        var routeSession = function(session) {
-            console.log('Routing session ' + session.id());
-            app.use('/' + session.id(), function(req, res) {
-                res.render('index', {'height': session.height(), 'width': session.width()}); 
-            });
-        };
-
         this.registerSession = function(width, height, token) {
             return new Promise(function(fullfil, reject) {
                 (function myself() {
@@ -132,7 +124,6 @@
                                         var session = new Session(sessionId, token, width, height);
                                         sessions[session.id()] = session;
                                         console.log('session created');
-                                        routeSession(session);
                                         fullfil(session);
                                     }
                                     else {
@@ -149,7 +140,9 @@
 
     app.get('/init', function init(request, response) {
         var token = (request.query.token != undefined ? request.query.token : hat());
-        sessionManager.registerSession(request.query.width, request.query.height, token).then(
+        var width = (request.query.width != undefined ? request.query.width : 80);
+        var height = (request.query.height != undefined ? request.query.height : 26);
+        sessionManager.registerSession(width, height, token).then(
             function(session) {
                 response.send({id: session.id(),
                                token: session.token(),
@@ -163,6 +156,14 @@
 
     app.use('/static', express.static('static'));
 
+    app.get('/:sessionId', function(req, res) {
+        sessionManager.getSession(req.params.sessionId).then(
+            function(session) {
+                res.render('index', {'height': session.height(), 'width': session.width()}); 
+            }).catch(function() {
+                res.send(req.params.sessionId + ' is not an active session.');
+            });
+    });
 
     app.get('/', function(req, res) {
         res.send('<h1>Toml\'s super-good termcast thinger!</h1>' +
