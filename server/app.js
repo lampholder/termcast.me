@@ -25,7 +25,6 @@
 
             var publisher = null;
             this.publisher = function(pub, token) {
-                console.log('Registering publisher ' + token + ' =?= ' + this.token());
                 if (pub === undefined) {
                     return publisher;
                 }
@@ -81,12 +80,26 @@
         };
 
         this.getSession = function(sessionId) {
-            if (sessionId in sessions) {
-                return sessions[sessionId];
-            }
-            else {
-                return null;
-            }
+            return new Promise(function(fullfil, reject) {
+                if (sessionId in sessions) {
+                    fullfil(sessions[sessionId]);
+                }
+                else {
+                    db.get('select sessionId, token, width, height from sessions where sessionId = ?',
+                           [sessionId],
+                           function(err, row) {
+                               if (row === undefined) {
+                                   reject();
+                               }
+                               else {
+                                   var session = new Session(row.sessionId, row.token, row.width, row.height);
+                                   sessions[sessionId] = session;
+                                   routeSession(session);
+                                   fullfil(session);
+                               }
+                           });
+                }
+            });
         };
 
         var db = function() {
@@ -98,6 +111,13 @@
             return connection;
         }();
 
+        var routeSession = function(session) {
+            console.log('Routing session ' + session.id());
+            app.use('/' + session.id(), function(req, res) {
+                res.render('index', {'height': session.height(), 'width': session.width()}); 
+            });
+        };
+
         this.registerSession = function(width, height, token) {
             return new Promise(function(fullfil, reject) {
                 (function myself() {
@@ -107,11 +127,12 @@
                                 [sessionId],
                                 function(err, row) {
                                     if (row.total == 0) {
-                                        var stmt = db.prepare('insert into sessions (sessionId, width, height) values (?, ?, ?)');
-                                        stmt.run(sessionId, width, height);
+                                        var stmt = db.prepare('insert into sessions (sessionId, token, width, height) values (?, ?, ?, ?)');
+                                        stmt.run(sessionId, token, width, height);
                                         var session = new Session(sessionId, token, width, height);
                                         sessions[session.id()] = session;
                                         console.log('session created');
+                                        routeSession(session);
                                         fullfil(session);
                                     }
                                     else {
@@ -134,9 +155,6 @@
                                token: session.token(),
                                width: session.width(),
                                height: session.height()
-                });
-                app.use('/' + session.id(), function(req, res) {
-                    res.render('index', {'height': session.height(), 'width': session.width()}); 
                 });
             }
         );
@@ -170,35 +188,36 @@
 
         websocket.on('message', function incoming(msg) {
             var message = JSON.parse(msg);
-            var session = sessionManager.getSession(location.path.substr(1));
+            sessionManager.getSession(location.path.substr(1)).then(function(session) {
 
-            if (message.type != 'stream') {
-                console.log(message.type + ': ' + message.body);
-            }
+                if (message.type != 'stream') {
+                    console.log(message.type + ': ' + message.body);
+                }
 
-            switch(message.type) {
-                case 'registerPublisher':
-                    if (message.token === session.token()) {
-                        session.publisher(websocket, message.token);
-                    }
-                    break;
-                case 'keepAlive':
-                    if (message.token === session.token()) {
-                        session.broadcast(message);
-                    }
-                    break;
-                case 'stream':
-                    if (message.token === session.token()) {
-                        session.broadcast(message);
-                    }
-                    break;
-                case 'registerSubscriber':
-                    session.subscribe(websocket);
-                    websocket.on('close', function() {
-                        session.unsubscribe(websocket);
-                    });
-                    break;
-            }
+                switch(message.type) {
+                    case 'registerPublisher':
+                        if (message.token === session.token()) {
+                            session.publisher(websocket, message.token);
+                        }
+                        break;
+                    case 'keepAlive':
+                        if (message.token === session.token()) {
+                            session.broadcast(message);
+                        }
+                        break;
+                    case 'stream':
+                        if (message.token === session.token()) {
+                            session.broadcast(message);
+                        }
+                        break;
+                    case 'registerSubscriber':
+                        session.subscribe(websocket);
+                        websocket.on('close', function() {
+                            session.unsubscribe(websocket);
+                        });
+                        break;
+                }
+            });
         });
     });
 
