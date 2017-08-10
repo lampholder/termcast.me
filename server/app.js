@@ -110,10 +110,10 @@
             return connection;
         }();
 
-        this.registerSession = function(width, height, token) {
+        this.registerSession = function(width, height, token, idGenerator) {
             return new Promise(function(fullfil, reject) {
                 (function myself() {
-                    var sessionId = RandomWords(1)[0];
+                    var sessionId = idGenerator();
                     console.log('Checking availability for \'' + sessionId + '\'');
                     db.get('select count(sessionId) as total from sessions where sessionId = ?',
                                 [sessionId],
@@ -142,7 +142,15 @@
         var token = (request.query.token != undefined ? request.query.token : hat());
         var width = (request.query.width != undefined ? request.query.width : 80);
         var height = (request.query.height != undefined ? request.query.height : 26);
-        sessionManager.registerSession(width, height, token).then(
+        var idGenerator = function() {
+            return hat();
+        };
+        if (request.query.idGenerator == 'dictionary') {
+            idGenerator = function() {
+                return RandomWords(1)[0];
+            };
+        }
+        sessionManager.registerSession(width, height, token, idGenerator).then(
             function(session) {
                 response.send({id: session.id(),
                                token: session.token(),
