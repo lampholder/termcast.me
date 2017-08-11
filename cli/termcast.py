@@ -136,8 +136,7 @@ def do_the_needful():
                    'height': height}
     else:
         try:
-            session = requests.get(host.http() + 'init?width=%s&height=%s' % (width, height)).json()
-            print session['token']
+            session = requests.get(host.http() + 'init?width=%s&height=%s&idGenerator=dictionary' % (width, height)).json()
         except Exception:
             exit(1)
 
@@ -158,7 +157,10 @@ def do_the_needful():
     for f in [fifo, tmux_config, output, tmux_socket]:
         os.remove(f)
 
-    print session['id'], session['token']
+    print "You have disconnected from your broadcast session."
+    print "To reconnect, run:"
+    print
+    print "termcast.py --session %s --token %s" % (session['id'], session['token'])
 
 if __name__ == "__main__":
     do_the_needful()
