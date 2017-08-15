@@ -3,12 +3,16 @@ html(lang="en")
   head
     title="Termcast Terminal Viewer"
     script(type='text/javascript', src='/static/xterm.js')
+    script(type='text/javascript', src='//code.jquery.com/jquery-3.2.1.min.js' integrity=integrity='sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=' crossorigin='anonymous')
     link(type='text/css', rel='stylesheet', href='/static/xterm.css')
     script(type='text/javascript').
       var sessionId = window.location.pathname.substr(1); //.slice(0, -1);
       var host = 'wss://termcast.me/' + sessionId;
       document.addEventListener("DOMContentLoaded", function(event) {
-        var term = new Terminal();
+        var term = new Terminal({cols: #{width},
+                                 rows: #{height},
+                                 scrollback: #{height}});
+
         term.open(document.getElementById('terminal'));
 
         term.resize(#{width}, #{height});
@@ -19,6 +23,30 @@ html(lang="en")
             ws.send(JSON.stringify({'type': 'registerSubscriber',
         			    'body': ''}));
         };
+
+        var check = function() {
+            if ( $('.xterm-viewport').length ) {
+                setTimeout(setup, 1000);
+            }
+            else {
+                setTimeout(check, 10);
+            }
+        };
+
+        var size = function() {
+            var xfactor = $(window).innerWidth() / $('.xterm-rows')[0].offsetWidth;
+            var yfactor = $(window).innerHeight() / $('.xterm-rows')[0].offsetHeight;
+            $('.xterm-rows').css('transform', 'scale(' + xfactor + ', ' + yfactor + ')');
+        };
+
+        var setup = function() {
+            $('.xterm-viewport').remove();
+            $('.xterm-rows').css('transform-origin', 'left top');
+            size();
+            $(window).resize(size); 
+        }
+
+        check();
 
         ws.onmessage = function (event) {
             var packet = JSON.parse(event.data);
@@ -34,5 +62,6 @@ html(lang="en")
             }
         };
       });
-  body
-    span(id='terminal')
+  body(style='margin:0px; background-color: black;')
+    span(id='term-container')
+      div(id='terminal')
