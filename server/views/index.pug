@@ -5,6 +5,7 @@ html(lang="en")
     script(type='text/javascript', src='/static/xterm.js')
     script(type='text/javascript', src='//code.jquery.com/jquery-3.2.1.min.js' integrity=integrity='sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=' crossorigin='anonymous')
     link(type='text/css', rel='stylesheet', href='/static/xterm.css')
+    link(type='text/css', rel='stylesheet', href='/static/custom.css')
     script(type='text/javascript').
       var sessionId = window.location.pathname.substr(1); //.slice(0, -1);
       var host = 'wss://termcast.me/' + sessionId;
@@ -48,6 +49,8 @@ html(lang="en")
 
         check();
 
+        var systemMessages = $('#term-messages');
+
         ws.onmessage = function (event) {
             var packet = JSON.parse(event.data);
             switch(packet.type) {
@@ -55,13 +58,19 @@ html(lang="en")
         	    console.log(packet.body);
         	    break;
         	case 'stream':
+                    systemMessages.hide(); 
         	    term.write(packet.body);
         	    break;
         	case 'viewcount':
         	    break;
+                case 'interrupt':
+                    systemMessages.show();
+                    break;
             }
         };
       });
   body(style='margin:0px; background-color: black;')
-    span(id='term-container')
+    div(id='term-messages')
+      span(id='message') BROADCAST DISCONNECTED
+    div(id='term-container')
       div(id='terminal')
