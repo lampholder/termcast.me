@@ -208,6 +208,9 @@
                         if (message.token === session.token()) {
                             session.publisher(websocket, message.token);
                         }
+                        websocket.on('close', function() {
+                            session.broadcast({type: 'interrupt'});
+                        });
                         break;
                     case 'keepAlive':
                         if (message.token === session.token()) {
