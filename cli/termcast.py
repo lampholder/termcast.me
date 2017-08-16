@@ -114,6 +114,7 @@ def do_the_needful():
     with open(tmux_config, 'w') as tmux_config_file:
         tmux_config_file.write('\n'.join([
             "set-option -g status-left-length 70",
+            "set -s escape-time 0",
             "set -g status-left '#(tail -n1 %s)'" % output,
             "set -g status-right ''",
             "set -g status-interval 1",
