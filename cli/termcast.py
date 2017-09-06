@@ -159,9 +159,10 @@ def do_the_needful():
         try:
             session = requests.get(host.http() + 'init?width=%s&height=%s&idGenerator=dictionary'
                                    % (width, height)).json()
-        except Exception:
+        except Exception as e:
             #TODO: Handle this exception with more nuance
-            sys.stderr.write('Unable to make HTTP connection to %s :(' % host.http())
+            sys.stderr.write('Unable to make HTTP connection to %s :(\n' % host.http())
+            sys.stderr.write(e)
             exit(1)
 
     stream_thread = Thread(target=stream, args=(host, session, fifo, output))
