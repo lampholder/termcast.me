@@ -23,7 +23,7 @@ setup(
     # Versions should comply with PEP440.  For a discussion on single-sourcing
     # the version across setup.py and the project code, see
     # https://packaging.python.org/en/latest/single_source_version.html
-    version='0.1a1',
+    version='0.1a2',
 
     description='A tool to share the contents of your terminal over the web',
     long_description=long_description,
@@ -47,7 +47,9 @@ setup(
         'Development Status :: 3 - Alpha',
 
         # Indicate who your project is intended for
-        'Intended Audience :: Terminal users',
+        'Intended Audience :: Developers',
+        'Intended Audience :: Education',
+        'Intended Audience :: System Administrators',
 
         # Pick your license as you wish (should match "license" above)
         'License :: OSI Approved :: MIT License',
