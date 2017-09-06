@@ -1,20 +1,24 @@
 #!/usr/bin/python
-"""Docstrings are cool"""
+"""Script to execute the terminal sharing."""
+
 import io
 import os
+import sys
 import time
 import uuid
 import json
 import argparse
 import platform
 import subprocess
+
 from threading import Thread
+from distutils import spawn
 
 import requests
 from websocket import create_connection
 
 class Host(object):
-    """This feels overengineered"""
+    """Stores the host domain"""
 
     def __init__(self, domain, ssl=True):
         self._ssl = ssl
@@ -30,7 +34,7 @@ class Host(object):
 
 
 def stream(host, session, fifo, output):
-    """Stream"""
+    """Handle all the bidirectional traffic"""
 
     #TODO: This should be in a config file.
     buffer_size = 1024
@@ -50,6 +54,7 @@ def stream(host, session, fifo, output):
                 if received['type'] == 'viewcount':
                     out.write(template % (session['id'], received['body']))
             except Exception:
+                #TODO: Handle exceptions with more nuance.
                 out.write('Connection interrupted :(\n')
                 time.sleep(30)
 
@@ -64,6 +69,7 @@ def stream(host, session, fifo, output):
             try:
                 ws.send(json.dumps({'type': 'keepAlive'}))
             except Exception:
+                #TODO: Handle exceptions with more nuance.
                 out.write('Connection interrupted :(\n')
             time.sleep(30)
 
@@ -87,8 +93,22 @@ def stream(host, session, fifo, output):
                 ws.send(j)
                 data_to_send = ''
 
+def system_dependency_is_available(dependency):
+    """Checks that a specified dependency is available on this machine."""
+    return spawn.find_executable(dependency)
+
+def check_requirements():
+    """We need to have a few things installed on the system:
+     - tmux
+     - script
+    """
+    assert system_dependency_is_available('tmux')
+    assert system_dependency_is_available('script')
+
 def do_the_needful():
-    """Do the needful"""
+    """Main method - parse arguments, generate temp. files, get stuff done."""
+    check_requirements()
+
     parser = argparse.ArgumentParser()
     parser.add_argument('--width', type=int, default=None)
     parser.add_argument('--height', type=int, default=None)
@@ -137,11 +157,13 @@ def do_the_needful():
                    'height': height}
     else:
         try:
-            session = requests.get(host.http() + 'init?width=%s&height=%s&idGenerator=dictionary' % (width, height)).json()
+            session = requests.get(host.http() + 'init?width=%s&height=%s&idGenerator=dictionary'
+                                   % (width, height)).json()
         except Exception:
+            #TODO: Handle this exception with more nuance
+            sys.stderr.write('Unable to make HTTP connection to %s :(' % host.http())
             exit(1)
 
-    # This needs replacing with the contents of stream.py
     stream_thread = Thread(target=stream, args=(host, session, fifo, output))
     stream_thread.daemon = True
     stream_thread.start()
@@ -155,8 +177,9 @@ def do_the_needful():
                      'new', 'script', '-q', '-t0', flush, fifo])
 
 
-    for f in [fifo, tmux_config, output, tmux_socket]:
-        os.remove(f)
+    # Tidy up after ourselves.
+    for mess in [fifo, tmux_config, output, tmux_socket]:
+        os.remove(mess)
 
     print "You have disconnected from your broadcast session."
     print "To reconnect, run:"
