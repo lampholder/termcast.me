@@ -1,10 +1,6 @@
 # termcast
 
-**termcast** exists to make it absolutely trivial to stream the contents of your current terminal session over the web, so that you can:
-- stream your terminal session so friends/collaborators/students can follow along as you grep logs, configure a webserver, play nethack, whatever.
-- display a status bar showing:
- - The URL your friends need to visit to see the broadcast
- - The number of people currently following along
+**termcast** exists to make it absolutely trivial to stream the contents of your current terminal session over the web, so that friends/collaborators/students can follow along as you grep logs, configure a webserver, play nethack, whatever :)
 
 ## How do I get it?
 
@@ -24,7 +20,9 @@ Tmux is in the mix because:
 
 ## Current state:
 
-The happy path is actually working pretty well now. There are still some issues, but they mostly pertain to the running of the server. It shouldn't be too hard for you to run your own instance of the server, but there's no good documentation for that yet.
+termcast is in alpha but the happy path is actually working pretty well. There are still some issues, but they mostly pertain to the running of the server. 
+
+Relying on my server running at termcast.me for mission critical procedures is... not recommended. The server is currently a Single Point of Failure, and could go down at any time.
 
 ## Usages of the installed script
 
