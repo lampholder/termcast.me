@@ -22,6 +22,8 @@ Tmux is in the mix because:
 
 ## Current state:
 
+The pip termcast only works on python >= 2.7.9 because earlier versions can't support SNI :(
+
 termcast is in alpha but the happy path is actually working pretty well. There are still some issues, but they mostly pertain to the running of the server. 
 
 Relying on my server running at termcast.me for mission critical procedures is... not recommended. The server is currently a Single Point of Failure, and could go down at any time.
