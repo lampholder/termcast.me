@@ -37,5 +37,7 @@ The happy path is actually working pretty well now. There are still some issues,
 Remember - viewers will see your terminal stretched to fit the size of their browser window, so very small/very large terminals could look pretty ugly.
 
 ## What's it look like?
-It looks like this: https://termcast.me/saddle
+![](https://raw.githubusercontent.com/lampholder/termcast/master/termcast.gif)
+
+(Hopefully) see it live in action here: https://termcast.me/saddle
   
