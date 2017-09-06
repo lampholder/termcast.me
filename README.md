@@ -2,6 +2,8 @@
 
 **termcast** exists to make it absolutely trivial to stream the contents of your current terminal session over the web, so that friends/collaborators/students can follow along as you grep logs, configure a webserver, play nethack, whatever :)
 
+![](https://raw.githubusercontent.com/lampholder/termcast/master/termcast.gif)
+
 ## How do I get it?
 
 You can either git clone this repo and run the cli/termcast.py script, or (preferably) use pip. [If you don't have pip, follow the instructions to get it here](https://pip.pypa.io/en/stable/installing/). You'll also need to install tmux if you don't have it already:
@@ -34,8 +36,7 @@ Relying on my server running at termcast.me for mission critical procedures is..
 
 Remember - viewers will see your terminal stretched to fit the size of their browser window, so very small/very large terminals could look pretty ugly.
 
-## What's it look like?
-![](https://raw.githubusercontent.com/lampholder/termcast/master/termcast.gif)
+## Can I see it in action?
 
-(Hopefully) see it live in action here: https://termcast.me/saddle
+(Hopefully) an instance is up-and-streaming infinite steam locomotive to: https://termcast.me/saddle
   
