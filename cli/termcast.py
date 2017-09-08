@@ -9,6 +9,7 @@ import uuid
 import json
 import argparse
 import platform
+import traceback
 import subprocess
 
 from threading import Thread
@@ -33,7 +34,7 @@ class Host(object):
         return 'http%s://%s/' % ('s' if self._ssl else '', self._domain)
 
 
-def stream(host, session, fifo, output):
+def stream(host, session, fifo, output, tmux_socket):
     """Handle all the bidirectional traffic"""
 
     #TODO: This should be in a config file.
@@ -53,6 +54,16 @@ def stream(host, session, fifo, output):
                 received = json.loads(ws.recv())
                 if received['type'] == 'viewcount':
                     out.write(template % (session['id'], received['body']))
+                if received['type'] == 'snapshot':
+                    # tmux -S /tmp/termcast.socket.ff994ada-b03c-47bf-9fec-01b195589c72 capture-pane -pe
+                    snapshot = subprocess.check_output(['tmux', '-S', tmux_socket, 'capture-pane', '-pe'])
+                    snapshot = snapshot.replace('\n', '\r\n').rstrip()
+                    j = json.dumps({'type': 'stream',
+                                    'token': session['token'],
+                                    'body': snapshot.decode('utf-8', 'replace')})
+                    ws.send(j)
+
+
             except Exception:
                 #TODO: Handle exceptions with more nuance.
                 out.write('Connection interrupted :(\n')
@@ -162,10 +173,10 @@ def do_the_needful():
         except Exception as e:
             #TODO: Handle this exception with more nuance
             sys.stderr.write('Unable to make HTTP connection to %s :(\n' % host.http())
-            sys.stderr.write(e)
+            traceback.print_exc()
             exit(1)
 
-    stream_thread = Thread(target=stream, args=(host, session, fifo, output))
+    stream_thread = Thread(target=stream, args=(host, session, fifo, output, tmux_socket))
     stream_thread.daemon = True
     stream_thread.start()
 
