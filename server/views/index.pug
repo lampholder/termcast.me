@@ -18,12 +18,38 @@ html(lang="en")
 
         term.resize(#{width}, #{height});
 
-        var ws = new WebSocket(host);
+        var initWs = function(host) {
+            var ws = new WebSocket(host);
 
-        ws.onopen = function(event) {
-            ws.send(JSON.stringify({'type': 'registerSubscriber',
-        			    'body': ''}));
+            ws.onopen = function(event) {
+                ws.send(JSON.stringify({'type': 'registerSubscriber',
+                			    'body': ''}));
+            };
+            ws.onmessage = function (event) {
+                var packet = JSON.parse(event.data);
+                switch(packet.type) {
+                    case 'status':
+        	        console.log(packet.body);
+                        break;
+                    case 'stream':
+                        systemMessages.hide(); 
+                        term.write(packet.body);
+        	        break;
+                    case 'viewcount':
+        	        break;
+                    case 'interrupt':
+                        systemMessages.show();
+                        break;
+                }
+            };
+            return ws;
         };
+        var ws = initWs(host);
+        $(window).focus(function() {
+            if (ws.readyState === ws.CLOSED) {
+                ws = initWs(host);
+            }
+        });
 
         var check = function() {
             if ( $('.xterm-viewport').length ) {
@@ -51,23 +77,6 @@ html(lang="en")
 
         var systemMessages = $('#term-messages');
 
-        ws.onmessage = function (event) {
-            var packet = JSON.parse(event.data);
-            switch(packet.type) {
-        	case 'status':
-        	    console.log(packet.body);
-        	    break;
-        	case 'stream':
-                    systemMessages.hide(); 
-        	    term.write(packet.body);
-        	    break;
-        	case 'viewcount':
-        	    break;
-                case 'interrupt':
-                    systemMessages.show();
-                    break;
-            }
-        };
       });
   body(style='margin:0px; background-color: black;')
     div(id='term-messages')
