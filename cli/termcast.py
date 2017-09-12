@@ -7,6 +7,7 @@ import sys
 import time
 import uuid
 import json
+import logging
 import argparse
 import platform
 import traceback
@@ -17,6 +18,7 @@ from distutils import spawn
 
 import requests
 from websocket import create_connection
+
 
 class Host(object):
     """Stores the host domain"""
@@ -69,7 +71,7 @@ def stream(host, session, fifo, output, tmux_socket):
             except Exception:
                 #TODO: Handle exceptions with more nuance.
                 out.write('Connection interrupted :(\n')
-                traceback.print_exc()
+                logging.exception('Exception receiving server messages')
                 time.sleep(30)
 
     listener_thread = Thread(target=listener)
@@ -85,6 +87,7 @@ def stream(host, session, fifo, output, tmux_socket):
             except Exception:
                 #TODO: Handle exceptions with more nuance.
                 out.write('Connection interrupted :(\n')
+                logging.exception('Exception sending keepalive')
             time.sleep(30)
 
     keep_alive_thread = Thread(target=keep_alive)
@@ -104,8 +107,11 @@ def stream(host, session, fifo, output, tmux_socket):
                 j = json.dumps({'type': 'stream',
                                 'token': session['token'],
                                 'body': data_to_send.decode('utf-8', 'replace')})
-                ws.send(j)
-                data_to_send = bytearray()
+                try:
+                    ws.send(j)
+                    data_to_send = bytearray()
+                except Exception:
+                    logging.exception('Exception streaming data to server')
 
 def system_dependency_is_available(dependency):
     """Checks that a specified dependency is available on this machine."""
@@ -128,9 +134,16 @@ def do_the_needful():
     parser.add_argument('--height', type=int, default=None)
     parser.add_argument('--token', default=None)
     parser.add_argument('--session', default=None)
+    parser.add_argument('--logfile', default=None)
     args = parser.parse_args()
 
     unique_id = uuid.uuid4()
+
+    # Configure logging
+    if args.logfile is not None:
+        logging.basicConfig(filename=args.logfile)
+    else:
+        logging.basicConfig(filename='/dev/null')
 
     prefix = '/tmp/termcast.'
 
