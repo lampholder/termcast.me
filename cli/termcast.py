@@ -54,19 +54,22 @@ def stream(host, session, fifo, output, tmux_socket):
                 received = json.loads(ws.recv())
                 if received['type'] == 'viewcount':
                     out.write(template % (session['id'], received['body']))
-                if received['type'] == 'snapshot':
-                    # tmux -S /tmp/termcast.socket.ff994ada-b03c-47bf-9fec-01b195589c72 capture-pane -pe
-                    snapshot = subprocess.check_output(['tmux', '-S', tmux_socket, 'capture-pane', '-pe'])
-                    snapshot = snapshot.replace('\n', '\r\n').rstrip()
-                    j = json.dumps({'type': 'stream',
+                if received['type'] == 'snapshot_request':
+                    snapshot = subprocess.check_output(['tmux', '-S',
+                                                        tmux_socket,
+                                                        'capture-pane',
+                                                        '-pe']).decode(sys.stdout.encoding)
+                    snapshot = snapshot.rstrip('\n').replace('\n', '\r\n')
+                    j = json.dumps({'type': 'snapshot',
                                     'token': session['token'],
-                                    'body': snapshot.decode('utf-8', 'replace')})
+                                    'body': snapshot,
+                                    'target': received['requester'] })
                     ws.send(j)
-
 
             except Exception:
                 #TODO: Handle exceptions with more nuance.
                 out.write('Connection interrupted :(\n')
+                traceback.print_exc()
                 time.sleep(30)
 
     listener_thread = Thread(target=listener)
@@ -93,16 +96,16 @@ def stream(host, session, fifo, output, tmux_socket):
                         'body': ''}))
 
     with io.open(fifo, 'r+b', 0) as typescript_fifo:
-        data_to_send = ''
+        data_to_send = bytearray()
         while True:
-            read_data = typescript_fifo.read(buffer_size)
+            read_data = bytearray(typescript_fifo.read(buffer_size))
             data_to_send += read_data
             if len(read_data) < buffer_size:
                 j = json.dumps({'type': 'stream',
                                 'token': session['token'],
                                 'body': data_to_send.decode('utf-8', 'replace')})
                 ws.send(j)
-                data_to_send = ''
+                data_to_send = bytearray()
 
 def system_dependency_is_available(dependency):
     """Checks that a specified dependency is available on this machine."""
@@ -138,9 +141,9 @@ def do_the_needful():
 
     width, height = args.width, args.height
     if width is None:
-        width = subprocess.check_output(['tput', 'cols']).strip()
+        width = subprocess.check_output(['tput', 'cols']).strip().decode(sys.stdout.encoding)
     if height is None:
-        height = subprocess.check_output(['tput', 'lines']).strip()
+        height = subprocess.check_output(['tput', 'lines']).strip().decode(sys.stdout.encoding)
 
     with open(tmux_config, 'w') as tmux_config_file:
         tmux_config_file.write('\n'.join([
@@ -188,15 +191,17 @@ def do_the_needful():
     subprocess.call(['tmux', '-S', tmux_socket, '-2', '-f', tmux_config,
                      'new', 'script', '-q', '-t0', flush, fifo])
 
-
     # Tidy up after ourselves.
     for mess in [fifo, tmux_config, output, tmux_socket]:
         os.remove(mess)
 
-    print "You have disconnected from your broadcast session."
-    print "To reconnect, run:"
-    print
-    print "termcast --session %s --token %s" % (session['id'], session['token'])
+    print("You have disconnected from your broadcast session.")
+    print("To reconnect, run:")
+    print("")
+    print("termcast --session %s --token %s --width %s --height %s" % (session['id'], 
+                                                                       session['token'],
+                                                                       session['width'],
+                                                                       session['height']))
 
 if __name__ == "__main__":
     do_the_needful()
