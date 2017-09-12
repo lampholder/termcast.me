@@ -41,6 +41,8 @@
                     self.publisher().readyState === WebSocket.OPEN) {
                     self.publisher().send(JSON.stringify({type: 'viewcount',
                                                           body: subscribers.length}));
+                    self.publisher().send(JSON.stringify({type: 'snapshot',
+                                                          body: ''}));
                 }
             };
 
@@ -174,10 +176,7 @@
     });
 
     app.get('/', function(req, res) {
-        res.send('<h1>Toml\'s super-good termcast thinger!</h1>' +
-                 '<p>Go <a href="https://github.com/lampholder/termcast/tree/master/cli">to the github page' +
-                 ' to get the python script and its bash wrapper</a>, then run .termcast.sh to start sharing' +
-                 ' your terminal session with the internet intuitively and greatly for fun and profit!</p>');
+        res.redirect('https://github.com/lampholder/termcast/');
     });
 
     const server = http.createServer(app);
