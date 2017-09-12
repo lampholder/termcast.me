@@ -41,22 +41,30 @@
                     self.publisher().readyState === WebSocket.OPEN) {
                     self.publisher().send(JSON.stringify({type: 'viewcount',
                                                           body: subscribers.length}));
-                    self.publisher().send(JSON.stringify({type: 'snapshot',
-                                                          body: ''}));
                 }
             };
 
+            var requestSnapshot = function(subscriber) {
+                console.log('Requesting snapshot.');
+                self.publisher().send(JSON.stringify({type: 'snapshot_request',
+                                                          requester: subscriber.uuid}));
+            };
+
             var subscribers = [];
+            var subscribers_map = {};
             this.subscribe = function(subscriber) {
                 if (subscribers.indexOf(subscriber) === -1) {
                     subscribers.push(subscriber);
+                    subscribers_map[subscriber.uuid] = subscriber; 
                     console.log('Adding ' + subscriber.uuid + ' Total: ' + subscribers.length);
+                    requestSnapshot(subscriber);
                     sendSubscriberCount();
                 }
             };
             this.unsubscribe = function(subscriber) {
                 if (subscribers.indexOf(subscriber) !== -1) {
                     subscribers = subscribers.filter(function(s) { return s.uuid !== subscriber.uuid; });
+                    delete subscribers_map[subscriber.uuid];
                     console.log('Removing ' + subscriber.uuid + ' Total: ' + subscribers.length);
                     sendSubscriberCount();
                 }
@@ -74,6 +82,18 @@
                 });
             };
 
+            this.narrowcast = function broadcast(data) {
+                var string_data = JSON.stringify(data);
+                var subscriber = subscribers_map[data.target];
+                
+                if (subscriber !== undefined &&
+                    subscriber.readyState === WebSocket.OPEN) {
+                    subscriber.send(string_data);
+                }
+                else {
+                    console.log(subscriber.uuid + ' - ' + subscriber.readyState);
+                }
+            };
         }
 
         var sessions = {};
@@ -219,6 +239,11 @@
                     case 'stream':
                         if (message.token === session.token()) {
                             session.broadcast(message);
+                        }
+                        break;
+                    case 'snapshot':
+                        if (message.token === session.token()) {
+                            session.narrowcast(message);
                         }
                         break;
                     case 'registerSubscriber':
