@@ -57,12 +57,20 @@ html(lang="en")
             }
         });
 
-        var check = function() {
+        var monitorConnection = function() {
+            if (ws.readyState === ws.CLOSED) {
+                ws = initWs(host);
+            }
+            setTimeout(monitorConnection, 10000);
+        };
+        monitorConnection();
+
+        var waitOnTerminalRendered = function() {
             if ( $('.xterm-viewport').length ) {
                 setTimeout(setup, 1000);
             }
             else {
-                setTimeout(check, 10);
+                setTimeout(waitOnTerminalRendered, 10);
             }
         };
 
@@ -79,7 +87,7 @@ html(lang="en")
             $(window).resize(size); 
         }
 
-        check();
+        waitOnTerminalRendered();
 
         var systemMessages = $('#term-messages');
 

@@ -26,9 +26,13 @@
             var publisher = null;
             this.publisher = function(pub, token) {
                 if (pub === undefined) {
+                    if (publisher == null) {
+                        console.log('Error: no recorded publisher');
+                    }
                     return publisher;
                 }
                 else if (token === this.token()) {
+                    console.log('Setting publisher to ' + pub);
                     publisher = pub;
                     sendSubscriberCount();
                 }
@@ -36,7 +40,7 @@
 
             var self = this;
             var sendSubscriberCount = function() {
-                console.log('Sending subscriber count ' + self.publisher());
+                console.log('Sending subscriber count ' + self.id() + ': ' + subscribers.length);
                 if (self.publisher() != null &&
                     self.publisher().readyState === WebSocket.OPEN) {
                     self.publisher().send(JSON.stringify({type: 'viewcount',
@@ -76,8 +80,12 @@
                     if (subscriber.readyState === WebSocket.OPEN) {
                         subscriber.send(string_data);
                     }
+                    else if (subscriber.readState === WebSocket.CLOSED) {
+                        console.log('Somehow we still have a stale subscriber (' + subscriber.uuid + '); removing');
+                        unsubscribe(subscriber);
+                    }
                     else {
-                        console.log(subscriber.uuid + ' - ' + subscriber.readyState);
+                        console.log('Message not sent to ' + subscriber.uuid + ' - ' + subscriber.readyState);
                     }
                 });
             };
@@ -218,7 +226,7 @@
             var message = JSON.parse(msg);
             sessionManager.getSession(location.path.substr(1)).then(function(session) {
 
-                if (message.type != 'stream') {
+                if (message.type != 'stream' && message.type != 'snapshot') {
                     console.log(message.type + ': ' + message.body);
                 }
 
