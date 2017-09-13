@@ -35,6 +35,9 @@ html(lang="en")
                         systemMessages.hide(); 
                         term.write(packet.body);
         	        break;
+                    case 'reset':
+                        term.clear();
+                        break;
                     case 'snapshot':
                         /* Currently same as stream; could probably be refactored. */
                         systemMessages.hide();
@@ -84,6 +87,7 @@ html(lang="en")
             $('.xterm-viewport').remove();
             $('.xterm-rows').css('transform-origin', 'left top');
             size();
+            $('#terminal').css('opacity', '1');
             $(window).resize(size); 
         }
 

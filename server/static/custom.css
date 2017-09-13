@@ -1,3 +1,7 @@
+#terminal {
+    opacity: 0;
+}
+
 #term-messages {
     position:absolute;
     padding:0;

@@ -38,6 +38,9 @@
                     publisher = pub;
                     sendSubscriberCount();
                 }
+                else {
+                    console.log('Invalid publisher token provided, rejecting');
+                }
             };
 
             var sendSubscriberCount = function() {
@@ -83,7 +86,7 @@
                     }
                     else if (subscriber.readyState === WebSocket.CLOSED) {
                         console.log('Somehow we still have a stale subscriber (' + subscriber.uuid + '); removing');
-                        unsubscribe(subscriber);
+                        self.unsubscribe(subscriber);
                     }
                     else {
                         console.log('Message not sent to ' + subscriber.uuid + ' - ' + subscriber.readyState);
@@ -235,6 +238,7 @@
                     case 'registerPublisher':
                         if (message.token === session.token()) {
                             session.publisher(websocket, message.token);
+                            session.broadcast({type: 'reset'});
                         }
                         websocket.on('close', function() {
                             session.broadcast({type: 'interrupt'});
