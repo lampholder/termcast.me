@@ -13,12 +13,12 @@ import platform
 import traceback
 import subprocess
 
+from threading import Lock
 from threading import Thread
 from distutils import spawn
 
 import requests
 from websocket import create_connection
-
 
 class Host(object):
     """Stores the host domain"""
@@ -43,34 +43,66 @@ def stream(host, session, fifo, output, tmux_socket):
     buffer_size = 1024
 
     url = host.ws() + session['id']
-    ws = create_connection(url)
+
+    container = {}
+    container['connection'] = None
+    container['viewers'] = 0
+
+    connection_lock = Lock()
 
     out = open(output, 'w', 1)
     template = ' ' + host.http() + '%s [%d viewing]\n'
-    out.write(template % (session['id'], 0))
+
+    def get_connection():
+        """Fetch the current websocket, or reestablish it if it's failed"""
+        # We don't have nonlocal in python 2
+        # TODO: Even so this is revolting.
+        with connection_lock:
+            while container['connection'] is None or not container['connection'].connected:
+                try:
+                    logging.warn('Attempting websocket connection')
+                    out.write('Connecting...\n')
+                    container['connection'] = create_connection(url)
+                    container['connection'].send(json.dumps({'type': 'registerPublisher',
+                                                             'token': session['token'],
+                                                             'body': ''}))
+                    logging.warn('Attempt succeeded')
+                    out.write(template % (session['id'], container['viewers']))
+                except Exception:
+                    logging.error('Attempt to create websocket connection failed')
+                    logging.exception('Error getting connection')
+                    retry = 10
+                    for i in range(retry):
+                        out.write('Connection interrupted; retrying in %d\n' % (retry - i))
+                        time.sleep(1)
+            return container['connection']
+
 
     def listener():
         """Listen to the few messages we care about coming back down the websocket."""
         while True:
             try:
-                received = json.loads(ws.recv())
+                received = json.loads(get_connection().recv())
                 if received['type'] == 'viewcount':
-                    out.write(template % (session['id'], received['body']))
+                    container['viewers'] = received['body']
+                    out.write(template % (session['id'], container['viewers']))
                 if received['type'] == 'snapshot_request':
                     snapshot = subprocess.check_output(['tmux', '-S',
                                                         tmux_socket,
                                                         'capture-pane',
                                                         '-pe']).decode(sys.stdout.encoding)
                     snapshot = snapshot.rstrip('\n').replace('\n', '\r\n')
+                    if snapshot[-1] == '>':
+                        # Is this a good idea? Probably not, but the common case is upsetting me :(
+                        snapshot += ' '
                     j = json.dumps({'type': 'snapshot',
                                     'token': session['token'],
                                     'body': snapshot,
                                     'target': received['requester'] })
-                    ws.send(j)
+                    get_connection().send(j)
 
             except Exception:
                 #TODO: Handle exceptions with more nuance.
-                out.write('Connection interrupted :(\n')
                 logging.exception('Exception receiving server messages')
                 time.sleep(30)
 
@@ -83,10 +115,9 @@ def stream(host, session, fifo, output, tmux_socket):
         volumes of traffic flowing to stay active."""
         while True:
             try:
-                ws.send(json.dumps({'type': 'keepAlive'}))
+                get_connection().send(json.dumps({'type': 'keepAlive'}))
             except Exception:
                 #TODO: Handle exceptions with more nuance.
-                out.write('Connection interrupted :(\n')
                 logging.exception('Exception sending keepalive')
             time.sleep(30)
 
@@ -94,9 +125,9 @@ def stream(host, session, fifo, output, tmux_socket):
     keep_alive_thread.daemon = True
     keep_alive_thread.start()
 
-    ws.send(json.dumps({'type': 'registerPublisher',
-                        'token': session['token'],
-                        'body': ''}))
+    #get_connection().send(json.dumps({'type': 'registerPublisher',
+    #                    'token': session['token'],
+    #                    'body': ''}))
 
     with io.open(fifo, 'r+b', 0) as typescript_fifo:
         data_to_send = bytearray()
@@ -108,7 +139,7 @@ def stream(host, session, fifo, output, tmux_socket):
                                 'token': session['token'],
                                 'body': data_to_send.decode('utf-8', 'replace')})
                 try:
-                    ws.send(j)
+                    get_connection().send(j)
                     data_to_send = bytearray()
                 except Exception:
                     logging.exception('Exception streaming data to server')
@@ -141,7 +172,9 @@ def do_the_needful():
 
     # Configure logging
     if args.logfile is not None:
-        logging.basicConfig(filename=args.logfile)
+        logging.basicConfig(filename=args.logfile,
+                            format='[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s - %(message)s',
+                            datefmt='%H:%M:%S')
     else:
         logging.basicConfig(filename='/dev/null')
 
