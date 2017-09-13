@@ -23,6 +23,8 @@
             this.width = function() { return width; };
             this.height = function() { return height; };
 
+            var self = this;
+
             var publisher = null;
             this.publisher = function(pub, token) {
                 if (pub === undefined) {
@@ -38,7 +40,6 @@
                 }
             };
 
-            var self = this;
             var sendSubscriberCount = function() {
                 console.log('Sending subscriber count ' + self.id() + ': ' + subscribers.length);
                 if (self.publisher() != null &&
@@ -80,7 +81,7 @@
                     if (subscriber.readyState === WebSocket.OPEN) {
                         subscriber.send(string_data);
                     }
-                    else if (subscriber.readState === WebSocket.CLOSED) {
+                    else if (subscriber.readyState === WebSocket.CLOSED) {
                         console.log('Somehow we still have a stale subscriber (' + subscriber.uuid + '); removing');
                         unsubscribe(subscriber);
                     }
@@ -93,7 +94,7 @@
             this.narrowcast = function broadcast(data) {
                 var string_data = JSON.stringify(data);
                 var subscriber = subscribers_map[data.target];
-                
+
                 if (subscriber !== undefined &&
                     subscriber.readyState === WebSocket.OPEN) {
                     subscriber.send(string_data);
