@@ -1,21 +1,22 @@
-function WebClient(terminal, notifier) {
+function WebClient(terminalManager, notifier) {
     var self = this;
+
+    var terminal = terminalManager.terminal;
 
     this.host = function() {
         return 'wss://termcast.me/' + window.location.pathname.substr(1);
     };
 
     var webSocket = null;
-    monitorConnection();
 
     var initiateWebSocket = function() {
-        self.webSocket = new WebSocket(self.host());
+        webSocket = new WebSocket(self.host());
 
-        self.webSocket.onopen = function(event) {
+        webSocket.onopen = function(event) {
             self.messages.registerSubscriber();
         };
 
-        self.webSocket.onmessage = function(event) {
+        webSocket.onmessage = function(event) {
             /* All the message routing goodness goes here */
             var packet = JSON.parse(event.data);
 
@@ -36,12 +37,12 @@ function WebClient(terminal, notifier) {
     };
 
     var send = function(jsonMessage) {
-        self.webSocket.send(JSON.stringify(jsonMessage));
+        webSocket.send(JSON.stringify(jsonMessage));
     };
 
     this.messages = {
         registerSubscriber: function() {
-            self.send({'type': 'registerSubscriber'});
+            send({'type': 'registerSubscriber'});
         },
     };
 
@@ -50,11 +51,13 @@ function WebClient(terminal, notifier) {
     };
 
     var monitorConnection = function() {
-        if (self.webSocket.readyState === ws.CLOSED) {
-            self.webSocket = initiateWebSocket();
+        if (webSocket == undefined ||
+            webSocket.readyState === WebSocket.CLOSED) {
+            initiateWebSocket();
         }
         setTimeout(monitorConnection, 10000);
     };
+    monitorConnection();
 
     /* Handlers */
     handleStream = function(packet) {
@@ -63,6 +66,7 @@ function WebClient(terminal, notifier) {
 
     handleSync = function(packet) {
         terminal.clear();
+        terminal.resize(packet.width, packet.height);
         terminal.write(packet.body);
     };
 
@@ -75,15 +79,13 @@ function WebClient(terminal, notifier) {
 function TerminalManager(domElement) {
     var self = this;
 
-    this.terminal = new Terminal({scrollback: 0});
+    this.terminal = new Terminal({scrollback: 100});
     this.terminal.open(domElement);
-
-    waitUntilTerminalRenderedThen(setUpTerminal);
 
     /* All of this stuff is only good for one fullscreen terminal for now. */
     var waitUntilTerminalRenderedThen = function(func) {
         if ($('.xterm-viewport').length) {
-            func();
+            setTimeout(func, 500);
         }
         else {
             setTimeout(waitOnTerminalRendered, 10);
@@ -104,6 +106,7 @@ function TerminalManager(domElement) {
         $('.xterm-rows').css('transform', 'scale(' + xfactor + ', ' + yfactor + ')');
     };
 
+    waitUntilTerminalRenderedThen(setUpTerminal);
 }
 
 function Notifier(domElement) {
@@ -124,9 +127,9 @@ function Notifier(domElement) {
 
 $(document).ready(function(event) {
 
-    var terminal = TerminalManager($('#terminal'));
-    var notifier = Notifier($('#term-messages'));
+    var terminalManager = new TerminalManager($('#terminal').get(0));
+    var notifier = new Notifier($('#term-messages').get(0));
 
-    var websocket = WebSocket(terminal, notifier);
+    var webclient = new WebClient(terminalManager, notifier);
 
 });

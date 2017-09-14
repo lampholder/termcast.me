@@ -54,8 +54,8 @@
 
             var requestSnapshot = function(subscriber) {
                 console.log('Requesting snapshot.');
-                self.publisher().send(JSON.stringify({type: 'snapshot_request',
-                                                          requester: subscriber.uuid}));
+                self.publisher().send(JSON.stringify({type: 'requestSync',
+                                                      requester: subscriber.uuid}));
             };
 
             var subscribers = [];
@@ -230,7 +230,7 @@
             var message = JSON.parse(msg);
             sessionManager.getSession(location.path.substr(1)).then(function(session) {
 
-                if (message.type != 'stream' && message.type != 'snapshot') {
+                if (message.type != 'stream' && message.type != 'sync') {
                     console.log(message.type + ': ' + message.body);
                 }
 
@@ -254,7 +254,7 @@
                             session.broadcast(message);
                         }
                         break;
-                    case 'snapshot':
+                    case 'sync':
                         if (message.token === session.token()) {
                             session.narrowcast(message);
                         }
