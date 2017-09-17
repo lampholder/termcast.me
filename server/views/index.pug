@@ -4,86 +4,9 @@ html(lang="en")
     title="Termcast Terminal Viewer"
     script(type='text/javascript', src='/static/xterm.js')
     script(type='text/javascript', src='//code.jquery.com/jquery-3.2.1.min.js' integrity=integrity='sha256-hwg4gsxgFZhOsEEamdOYGBf13FyQuiTwlAQgxVSNgt4=' crossorigin='anonymous')
+    script(type='text/javascript', src='/static/webclient.js')
     link(type='text/css', rel='stylesheet', href='/static/xterm.css')
     link(type='text/css', rel='stylesheet', href='/static/custom.css')
-    script(type='text/javascript').
-      var sessionId = window.location.pathname.substr(1); //.slice(0, -1);
-      var host = 'wss://termcast.me/' + sessionId;
-      document.addEventListener("DOMContentLoaded", function(event) {
-        var term = new Terminal({cols: #{width},
-                                 rows: #{height},
-                                 scrollback: #{height}});
-
-        term.open(document.getElementById('terminal'));
-
-        term.resize(#{width}, #{height});
-
-        var initWs = function(host) {
-            var ws = new WebSocket(host);
-
-            ws.onopen = function(event) {
-                ws.send(JSON.stringify({'type': 'registerSubscriber',
-                			    'body': ''}));
-            };
-            ws.onmessage = function (event) {
-                var packet = JSON.parse(event.data);
-                switch(packet.type) {
-                    case 'status':
-        	        console.log(packet.body);
-                        break;
-                    case 'stream':
-                        systemMessages.hide(); 
-                        term.write(packet.body);
-        	        break;
-                    case 'snapshot':
-                        /* Currently same as stream; could probably be refactored. */
-                        systemMessages.hide();
-                        term.clear();
-                        term.write(packet.body);
-        	        break;
-                    case 'viewcount':
-        	        break;
-                    case 'interrupt':
-                        systemMessages.show();
-                        break;
-                }
-            };
-            return ws;
-        };
-        var ws = initWs(host);
-        $(window).focus(function() {
-            if (ws.readyState === ws.CLOSED) {
-                ws = initWs(host);
-            }
-        });
-
-        var check = function() {
-            if ( $('.xterm-viewport').length ) {
-                setTimeout(setup, 1000);
-            }
-            else {
-                setTimeout(check, 10);
-            }
-        };
-
-        var size = function() {
-            var xfactor = $(window).innerWidth() / $('.xterm-rows')[0].offsetWidth;
-            var yfactor = $(window).innerHeight() / $('.xterm-rows')[0].offsetHeight;
-            $('.xterm-rows').css('transform', 'scale(' + xfactor + ', ' + yfactor + ')');
-        };
-
-        var setup = function() {
-            $('.xterm-viewport').remove();
-            $('.xterm-rows').css('transform-origin', 'left top');
-            size();
-            $(window).resize(size); 
-        }
-
-        check();
-
-        var systemMessages = $('#term-messages');
-
-      });
   body(style='margin:0px; background-color: black;')
     div(id='term-messages')
       span(id='message') BROADCAST DISCONNECTED

@@ -7,11 +7,13 @@ import sys
 import time
 import uuid
 import json
+import logging
 import argparse
 import platform
 import traceback
 import subprocess
 
+from threading import Lock
 from threading import Thread
 from distutils import spawn
 
@@ -34,42 +36,88 @@ class Host(object):
         return 'http%s://%s/' % ('s' if self._ssl else '', self._domain)
 
 
-def stream(host, session, fifo, output, tmux_socket):
+def communicate(host, session, fifo, output, tmux_socket):
     """Handle all the bidirectional traffic"""
 
     #TODO: This should be in a config file.
     buffer_size = 1024
 
     url = host.ws() + session['id']
-    ws = create_connection(url)
+
+    container = {}
+    container['connection'] = None
+    container['viewers'] = 0
+
+    connection_lock = Lock()
 
     out = open(output, 'w', 1)
     template = ' ' + host.http() + '%s [%d viewing]\n'
-    out.write(template % (session['id'], 0))
+
+    def get_connection():
+        """Fetch the current websocket, or reestablish it if it's failed"""
+        # We don't have nonlocal in python 2
+        # TODO: Even so this is revolting.
+        with connection_lock:
+            while container['connection'] is None or not container['connection'].connected:
+                try:
+                    logging.warn('Attempting websocket connection')
+                    out.write('Connecting...\n')
+                    container['connection'] = create_connection(url)
+                    container['connection'].send(json.dumps({'type': 'registerPublisher',
+                                                             'token': session['token'],
+                                                             'body': ''}))
+                    logging.warn('Attempt succeeded')
+                    out.write(template % (session['id'], container['viewers']))
+                except Exception:
+                    logging.error('Attempt to create websocket connection failed')
+                    logging.exception('Error getting connection')
+                    retry = 10
+                    for i in range(retry):
+                        out.write('Connection interrupted; retrying in %d\n' % (retry - i))
+                        time.sleep(1)
+            return container['connection']
+
+    def sync(target):
+        """Fetch the current terminal status for a new subscriber."""
+        tmux_session_state = None
+        while tmux_session_state is None:
+            try:
+                tmux_session_state = subprocess.check_output(['tmux', '-S',
+                                                              tmux_socket,
+                                                              'capture-pane',
+                                                              '-pe']).decode(sys.stdout.encoding)
+            except subprocess.CalledProcessError:
+                logging.exception('Tmux session not yet initiated')
+                time.sleep(0.1)
+        logging.info('Tmux session sync retrieved')
+        tmux_session_state = tmux_session_state.rstrip('\n').replace('\n', '\r\n')
+        if len(tmux_session_state) > 0 and tmux_session_state[-1] == '>':
+            # Is this a good idea? Probably not, but the common case is upsetting me :(
+            tmux_session_state += ' '
+        sync_object = {'type': 'sync',
+                       'token': session['token'],
+                       'body': tmux_session_state,
+                       'target': target,
+                       'width': session['width'],
+                       'height': session['height']}
+
+        logging.info('Sending sync...')
+        get_connection().send(json.dumps(sync_object))
 
     def listener():
         """Listen to the few messages we care about coming back down the websocket."""
         while True:
             try:
-                received = json.loads(ws.recv())
+                received = json.loads(get_connection().recv())
                 if received['type'] == 'viewcount':
-                    out.write(template % (session['id'], received['body']))
-                if received['type'] == 'snapshot_request':
-                    snapshot = subprocess.check_output(['tmux', '-S',
-                                                        tmux_socket,
-                                                        'capture-pane',
-                                                        '-pe']).decode(sys.stdout.encoding)
-                    snapshot = snapshot.rstrip('\n').replace('\n', '\r\n')
-                    j = json.dumps({'type': 'snapshot',
-                                    'token': session['token'],
-                                    'body': snapshot,
-                                    'target': received['requester'] })
-                    ws.send(j)
+                    container['viewers'] = received['body']
+                    out.write(template % (session['id'], container['viewers']))
+                if received['type'] == 'requestSync':
+                    sync(target=received['requester'])
 
             except Exception:
                 #TODO: Handle exceptions with more nuance.
-                out.write('Connection interrupted :(\n')
-                traceback.print_exc()
+                logging.exception('Exception receiving server messages')
                 time.sleep(30)
 
     listener_thread = Thread(target=listener)
@@ -81,19 +129,15 @@ def stream(host, session, fifo, output, tmux_socket):
         volumes of traffic flowing to stay active."""
         while True:
             try:
-                ws.send(json.dumps({'type': 'keepAlive'}))
+                get_connection().send(json.dumps({'type': 'keepAlive'}))
             except Exception:
                 #TODO: Handle exceptions with more nuance.
-                out.write('Connection interrupted :(\n')
+                logging.exception('Exception sending keepalive')
             time.sleep(30)
 
     keep_alive_thread = Thread(target=keep_alive)
     keep_alive_thread.daemon = True
     keep_alive_thread.start()
-
-    ws.send(json.dumps({'type': 'registerPublisher',
-                        'token': session['token'],
-                        'body': ''}))
 
     with io.open(fifo, 'r+b', 0) as typescript_fifo:
         data_to_send = bytearray()
@@ -104,8 +148,11 @@ def stream(host, session, fifo, output, tmux_socket):
                 j = json.dumps({'type': 'stream',
                                 'token': session['token'],
                                 'body': data_to_send.decode('utf-8', 'replace')})
-                ws.send(j)
-                data_to_send = bytearray()
+                try:
+                    get_connection().send(j)
+                    data_to_send = bytearray()
+                except Exception:
+                    logging.exception('Exception streaming data to server')
 
 def system_dependency_is_available(dependency):
     """Checks that a specified dependency is available on this machine."""
@@ -128,9 +175,22 @@ def do_the_needful():
     parser.add_argument('--height', type=int, default=None)
     parser.add_argument('--token', default=None)
     parser.add_argument('--session', default=None)
+    parser.add_argument('--logfile', default=None)
+    parser.add_argument('--host', default='https://termcast.me')
     args = parser.parse_args()
 
     unique_id = uuid.uuid4()
+
+    # Configure logging
+    if args.logfile is not None:
+        logging.basicConfig(level=logging.INFO,
+                            filename=args.logfile,
+                            format='[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s - %(message)s',
+                            datefmt='%H:%M:%S')
+    else:
+        logging.basicConfig(filename='/dev/null')
+
+    logging.info('Starting...')
 
     prefix = '/tmp/termcast.'
 
@@ -141,9 +201,9 @@ def do_the_needful():
 
     width, height = args.width, args.height
     if width is None:
-        width = subprocess.check_output(['tput', 'cols']).strip().decode(sys.stdout.encoding)
+        width = int(subprocess.check_output(['tput', 'cols']).strip().decode(sys.stdout.encoding))
     if height is None:
-        height = subprocess.check_output(['tput', 'lines']).strip().decode(sys.stdout.encoding)
+        height = int(subprocess.check_output(['tput', 'lines']).strip().decode(sys.stdout.encoding))
 
     with open(tmux_config, 'w') as tmux_config_file:
         tmux_config_file.write('\n'.join([
@@ -163,7 +223,8 @@ def do_the_needful():
     subprocess.call(['mkfifo', fifo])
 
     # Get the session details
-    host = Host('termcast.me', ssl=True)
+    (protocol, domain) = args.host.split('://')
+    host = Host(domain, ssl=(protocol == 'https'))
     if args.session is not None and args.token is not None:
         session = {'id': args.session,
                    'token': args.token,
@@ -171,17 +232,18 @@ def do_the_needful():
                    'height': height}
     else:
         try:
-            session = requests.get(host.http() + 'init?width=%s&height=%s&idGenerator=dictionary'
-                                   % (width, height)).json()
+            session = requests.get(host.http() + 'init?idGenerator=dictionary').json()
+            session['width'] = width
+            session['height'] = height
         except Exception as e:
             #TODO: Handle this exception with more nuance
             sys.stderr.write('Unable to make HTTP connection to %s :(\n' % host.http())
             traceback.print_exc()
             exit(1)
 
-    stream_thread = Thread(target=stream, args=(host, session, fifo, output, tmux_socket))
-    stream_thread.daemon = True
-    stream_thread.start()
+    comms_thread = Thread(target=communicate, args=(host, session, fifo, output, tmux_socket))
+    comms_thread.daemon = True
+    comms_thread.start()
 
     if platform.system() == 'Darwin':
         flush = '-F'
@@ -190,6 +252,7 @@ def do_the_needful():
 
     subprocess.call(['tmux', '-S', tmux_socket, '-2', '-f', tmux_config,
                      'new', 'script', '-q', '-t0', flush, fifo])
+    time.sleep(0.1) # Give tmux a chance to start - should really wait for socket file to exist.
 
     # Tidy up after ourselves.
     for mess in [fifo, tmux_config, output, tmux_socket]:
