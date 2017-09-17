@@ -4,9 +4,33 @@ function WebClient(terminalManager, notifier) {
     var terminal = terminalManager.terminal;
 
     this.host = function() {
-        return 'wss://termcast.me/' + window.location.pathname.substr(1);
+        return (location.protocol == 'https' ? 'wss' : 'ws') +
+                   '://' +
+                   location.hostname +
+                   (location.port ? ':' + location.port : '') +
+                   '/' +
+                   location.pathname.substr(1);
     };
 
+    /* Handlers */
+    var handleStream = function(packet) {
+        terminal.write(packet.body);
+    };
+
+    var handleSync = function(packet) {
+        terminal.resize(packet.width, packet.height);
+        terminal.write(packet.body);
+    };
+
+    var handleStreamClosed = function(packet) {
+        notifier.show('Broadcaster has disconnected.');
+    };
+
+    var connectionEstablished = function() {
+        notifier.hide();
+    };
+
+    /* Mechanics */
     var webSocket = null;
 
     var initiateWebSocket = function() {
@@ -14,6 +38,7 @@ function WebClient(terminalManager, notifier) {
 
         webSocket.onopen = function(event) {
             self.messages.registerSubscriber();
+            connectionEstablished();
         };
 
         webSocket.onmessage = function(event) {
@@ -21,6 +46,12 @@ function WebClient(terminalManager, notifier) {
             var packet = JSON.parse(event.data);
 
             switch(packet.type) {
+                case 'reset':
+                    location.reload();
+                    break;
+                case 'id':
+                    console.log('Assigned id: ' + packet.body);
+                    break;
                 case 'stream':
                     handleStream(packet);
                     break;
@@ -33,6 +64,10 @@ function WebClient(terminalManager, notifier) {
                 default:
                     console.log('Unhandled message:' + event.data);
             }
+        };
+
+        webSocket.onclose = function() {
+            notifier.show('Server cannot be reached, retrying...');
         };
     };
 
@@ -55,24 +90,9 @@ function WebClient(terminalManager, notifier) {
             webSocket.readyState === WebSocket.CLOSED) {
             initiateWebSocket();
         }
-        setTimeout(monitorConnection, 10000);
+        setTimeout(monitorConnection, 1000);
     };
     monitorConnection();
-
-    /* Handlers */
-    handleStream = function(packet) {
-        terminal.write(packet.body);
-    };
-
-    handleSync = function(packet) {
-        terminal.clear();
-        terminal.resize(packet.width, packet.height);
-        terminal.write(packet.body);
-    };
-
-    handleStreamClosed = function(packet) {
-        /* Do stuff here */
-    };
 
 }
 
@@ -95,12 +115,12 @@ function TerminalManager(domElement) {
     var setUpTerminal = function() {
         $('.xterm-viewport').remove();
         $('.xterm-rows').css('transform-origin', 'left top');
-        scaleTerminal();
+        self.scaleTerminal();
         $('#terminal').css('opacity', '1');
-        $(window).resize(scaleTerminal);
+        $(window).resize(self.scaleTerminal);
     };
 
-    var scaleTerminal = function() {
+    this.scaleTerminal = function() {
         var xfactor = $(window).innerWidth() / $('.xterm-rows')[0].offsetWidth;
         var yfactor = $(window).innerHeight() / $('.xterm-rows')[0].offsetHeight;
         $('.xterm-rows').css('transform', 'scale(' + xfactor + ', ' + yfactor + ')');

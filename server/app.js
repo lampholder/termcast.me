@@ -17,11 +17,9 @@
 
     function SessionManager() {
 
-        function Session(id, token, width, height) {
+        function Session(id, token) {
             this.id = function() { return id; };
             this.token = function() { return token; };
-            this.width = function() { return width; };
-            this.height = function() { return height; };
 
             var self = this;
 
@@ -29,12 +27,12 @@
             this.publisher = function(pub, token) {
                 if (pub === undefined) {
                     if (publisher == null) {
-                        console.log('Error: no recorded publisher');
+                        console.log('Error: publisher requested but none set for ' + self.id());
                     }
                     return publisher;
                 }
                 else if (token === this.token()) {
-                    console.log('Setting publisher to ' + pub);
+                    console.log('Setting publisher for ' + self.id() + ' to ' + pub.uuid);
                     publisher = pub;
                     sendSubscriberCount();
                 }
@@ -52,8 +50,8 @@
                 }
             };
 
-            var requestSnapshot = function(subscriber) {
-                console.log('Requesting snapshot.');
+            var requestSync = function(subscriber) {
+                console.log('Requesting sync for ' + self.id() + ' for ' + subscriber.uuid);
                 self.publisher().send(JSON.stringify({type: 'requestSync',
                                                       requester: subscriber.uuid}));
             };
@@ -63,9 +61,10 @@
             this.subscribe = function(subscriber) {
                 if (subscribers.indexOf(subscriber) === -1) {
                     subscribers.push(subscriber);
-                    subscribers_map[subscriber.uuid] = subscriber; 
-                    console.log('Adding ' + subscriber.uuid + ' Total: ' + subscribers.length);
-                    requestSnapshot(subscriber);
+                    subscribers_map[subscriber.uuid] = subscriber;
+                    console.log('Subscribing: ' + subscriber.uuid +
+                                ' (new total: ' + subscribers.length + ')');
+                    requestSync(subscriber);
                     sendSubscriberCount();
                 }
             };
@@ -73,7 +72,8 @@
                 if (subscribers.indexOf(subscriber) !== -1) {
                     subscribers = subscribers.filter(function(s) { return s.uuid !== subscriber.uuid; });
                     delete subscribers_map[subscriber.uuid];
-                    console.log('Removing ' + subscriber.uuid + ' Total: ' + subscribers.length);
+                    console.log('Unsubscribing: ' + subscriber.uuid +
+                                ' (new total: ' + subscribers.length + ')');
                     sendSubscriberCount();
                 }
             };
@@ -85,11 +85,12 @@
                         subscriber.send(string_data);
                     }
                     else if (subscriber.readyState === WebSocket.CLOSED) {
-                        console.log('Somehow we still have a stale subscriber (' + subscriber.uuid + '); removing');
+                        console.log('Stale subscriber found (' + subscriber.uuid + '); removing');
                         self.unsubscribe(subscriber);
                     }
                     else {
-                        console.log('Message not sent to ' + subscriber.uuid + ' - ' + subscriber.readyState);
+                        console.log('Message not sent to ' + subscriber.uuid +
+                                    ' - ' + subscriber.readyState);
                     }
                 });
             };
@@ -119,14 +120,14 @@
                     fullfil(sessions[sessionId]);
                 }
                 else {
-                    db.get('select sessionId, token, width, height from sessions where sessionId = ?',
+                    db.get('select sessionId, token from sessions where sessionId = ?',
                            [sessionId],
                            function(err, row) {
                                if (row === undefined) {
                                    reject();
                                }
                                else {
-                                   var session = new Session(row.sessionId, row.token, row.width, row.height);
+                                   var session = new Session(row.sessionId, row.token);
                                    sessions[sessionId] = session;
                                    fullfil(session);
                                }
@@ -139,12 +140,12 @@
             /* Establishes a connection to the database; installs the schema if necessary */
             var connection = new sqlite3.Database('sessions.db');
             connection.serialize(function() {
-                connection.run('create table if not exists sessions (sessionId text not null, token text not null, width integer not null, height integer not null)');
+                connection.run('create table if not exists sessions (sessionId text not null, token text not null)');
             });
             return connection;
         }();
 
-        this.registerSession = function(width, height, token, idGenerator) {
+        this.registerSession = function(token, idGenerator) {
             return new Promise(function(fullfil, reject) {
                 (function myself() {
                     var sessionId = idGenerator();
@@ -153,9 +154,9 @@
                                 [sessionId],
                                 function(err, row) {
                                     if (row.total == 0) {
-                                        var stmt = db.prepare('insert into sessions (sessionId, token, width, height) values (?, ?, ?, ?)');
-                                        stmt.run(sessionId, token, width, height);
-                                        var session = new Session(sessionId, token, width, height);
+                                        var stmt = db.prepare('insert into sessions (sessionId, token) values (?, ?)');
+                                        stmt.run(sessionId, token);
+                                        var session = new Session(sessionId, token);
                                         sessions[session.id()] = session;
                                         console.log('session created');
                                         fullfil(session);
@@ -174,8 +175,6 @@
 
     app.get('/init', function init(request, response) {
         var token = (request.query.token != undefined ? request.query.token : hat());
-        var width = (request.query.width != undefined ? request.query.width : 80);
-        var height = (request.query.height != undefined ? request.query.height : 26);
         var idGenerator = function() {
             return hat();
         };
@@ -184,12 +183,10 @@
                 return RandomWords(1)[0];
             };
         }
-        sessionManager.registerSession(width, height, token, idGenerator).then(
+        sessionManager.registerSession(token, idGenerator).then(
             function(session) {
                 response.send({id: session.id(),
-                               token: session.token(),
-                               width: session.width(),
-                               height: session.height()
+                               token: session.token()
                 });
             }
         );
@@ -201,7 +198,7 @@
     app.get('/:sessionId', function(req, res) {
         sessionManager.getSession(req.params.sessionId).then(
             function(session) {
-                res.render('index', {'height': session.height(), 'width': session.width()}); 
+                res.render('index');
             }).catch(function() {
                 res.send(req.params.sessionId + ' is not an active session.');
             });
@@ -224,16 +221,13 @@
         }
 
         websocket.uuid = guid();
+        websocket.send(JSON.stringify({type: 'id', body: websocket.uuid}));
+
         var location = url.parse(request.url, true);
 
         websocket.on('message', function incoming(msg) {
             var message = JSON.parse(msg);
             sessionManager.getSession(location.path.substr(1)).then(function(session) {
-
-                if (message.type != 'stream' && message.type != 'sync') {
-                    console.log(message.type + ': ' + message.body);
-                }
-
                 switch(message.type) {
                     case 'registerPublisher':
                         if (message.token === session.token()) {
@@ -241,7 +235,13 @@
                             session.broadcast({type: 'reset'});
                         }
                         websocket.on('close', function() {
-                            session.broadcast({type: 'interrupt'});
+                            session.broadcast({type: 'closed'});
+                        });
+                        break;
+                    case 'registerSubscriber':
+                        session.subscribe(websocket);
+                        websocket.on('close', function() {
+                            session.unsubscribe(websocket);
                         });
                         break;
                     case 'keepAlive':
@@ -254,16 +254,17 @@
                             session.broadcast(message);
                         }
                         break;
+                    case 'reset':
+                        session.broadcast(message);
+                        break;
                     case 'sync':
                         if (message.token === session.token()) {
+                            console.log('Sending requested sync to ' + message.target);
                             session.narrowcast(message);
                         }
                         break;
-                    case 'registerSubscriber':
-                        session.subscribe(websocket);
-                        websocket.on('close', function() {
-                            session.unsubscribe(websocket);
-                        });
+                    default:
+                        console.log('Unhandled message:' + msg);
                         break;
                 }
             });
