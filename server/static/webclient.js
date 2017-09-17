@@ -4,7 +4,7 @@ function WebClient(terminalManager, notifier) {
     var terminal = terminalManager.terminal;
 
     this.host = function() {
-        return (location.protocol == 'https' ? 'wss' : 'ws') +
+        return (location.protocol == 'https:' ? 'wss' : 'ws') +
                    '://' +
                    location.hostname +
                    (location.port ? ':' + location.port : '') +
