@@ -40,5 +40,5 @@ Remember - viewers will see your terminal stretched to fit the size of their bro
 
 ## Can I see it in action?
 
-(Hopefully) an instance is up-and-streaming infinite steam locomotive to: https://termcast.me/saddle
+(Hopefully) an instance is up-and-streaming on: https://termcast.me/truck
   
