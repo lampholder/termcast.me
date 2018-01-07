@@ -177,6 +177,8 @@ def do_the_needful():
     parser.add_argument('--session', default=None)
     parser.add_argument('--logfile', default=None)
     parser.add_argument('--host', default='https://termcast.me')
+    parser.add_argument('--gensession', action='store_true', default=False)
+    parser.add_argument('--command', '-c', type=str, default=None, dest='command')
     args = parser.parse_args()
 
     unique_id = uuid.uuid4()
@@ -204,6 +206,7 @@ def do_the_needful():
         width = int(subprocess.check_output(['tput', 'cols']).strip().decode(sys.stdout.encoding))
     if height is None:
         height = int(subprocess.check_output(['tput', 'lines']).strip().decode(sys.stdout.encoding))
+        height -= 1 # We're using one line for the tmux status bar.
 
     with open(tmux_config, 'w') as tmux_config_file:
         tmux_config_file.write('\n'.join([
@@ -218,9 +221,6 @@ def do_the_needful():
             "set-option -g status-position top",
             "set-window-option -g window-status-current-format ''",
             "set-window-option -g window-status-format ''"]))
-
-    # This gubbins sets up the fifo
-    subprocess.call(['mkfifo', fifo])
 
     # Get the session details
     (protocol, domain) = args.host.split('://')
@@ -241,17 +241,25 @@ def do_the_needful():
             traceback.print_exc()
             exit(1)
 
+    if args.gensession:
+        # We _only_ want to set up the session and return the details
+        print session['id'], session['token'], session['width'], session['height']
+        exit(1)
+
+    # This gubbins sets up the fifo
+    subprocess.call(['mkfifo', fifo])
+
     comms_thread = Thread(target=communicate, args=(host, session, fifo, output, tmux_socket))
     comms_thread.daemon = True
     comms_thread.start()
 
-    if platform.system() == 'Darwin':
-        flush = '-F'
-    else:
-        flush = '-f'
+    flush = '-F' if platform.system() == 'Darwin' else '-f'
 
     subprocess.call(['tmux', '-S', tmux_socket, '-2', '-f', tmux_config,
-                     'new', 'script', '-q', '-t0', flush, fifo])
+                     'new', 'script', '-q', '-t0', flush, fifo] + (args.command.split()
+                                                                   if args.command else []))
+
+
     time.sleep(0.1) # Give tmux a chance to start - should really wait for socket file to exist.
 
     # Tidy up after ourselves.
