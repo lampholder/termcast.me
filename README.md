@@ -40,5 +40,4 @@ Remember - viewers will see your terminal stretched to fit the size of their bro
 
 ## Can I see it in action?
 
-(Hopefully) an instance is up-and-streaming on: https://termcast.me/truck
-  
+(Hopefully) an instance is up-and-streaming on: https://termcast.me/store
