@@ -177,7 +177,8 @@ def do_the_needful():
     parser.add_argument('--session', default=None)
     parser.add_argument('--logfile', default=None)
     parser.add_argument('--host', default='https://termcast.me')
-    parser.add_argument('--command', type=str, default=None)
+    parser.add_argument('--command', type=str, default='')
+    parser.add_argument('--headless', action="store_true")
     args = parser.parse_args()
 
     unique_id = uuid.uuid4()
@@ -247,11 +248,15 @@ def do_the_needful():
     else:
         flush = '-f'
 
-    if args.command != None:
+    os.environ['TERMCAST_URL'] = '%s/%s' % (args.host, session['id'])
+    command = [part for part in args.command.split(' ')
+               if part.strip() != '']
+
+    if args.headless:
         f = os.fork()
         if f == 0:
             devnull = open('/dev/null', 'w')
-            proc = subprocess.Popen(['script', '-q', '-t0', flush, fifo] + args.command.split(' '),
+            proc = subprocess.Popen(['script', '-q', '-t0', flush, fifo] + command,
                                    stdout=devnull)
             print('%s/%s' % (args.host, session['id']), proc.pid)
 
@@ -270,7 +275,7 @@ def do_the_needful():
 
     else:
         proc = subprocess.Popen(['tmux', '-S', tmux_socket, '-2', '-f', tmux_config,
-                                 'new', 'script', '-q', '-t0', flush, fifo])
+                                 'new', 'script', '-q', '-t0', flush, fifo] + command)
 
         comms_thread = Thread(target=communicate, args=(host, session, fifo, output, tmux_socket))
         comms_thread.daemon = True
