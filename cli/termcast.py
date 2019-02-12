@@ -178,7 +178,6 @@ def do_the_needful():
     parser.add_argument('--logfile', default=None)
     parser.add_argument('--host', default='https://termcast.me')
     parser.add_argument('--command', type=str, default='')
-    parser.add_argument('--headless', action="store_true")
     args = parser.parse_args()
 
     unique_id = uuid.uuid4()
@@ -198,12 +197,8 @@ def do_the_needful():
 
     fifo = prefix + 'fifo.%s' % unique_id
     output = prefix + 'output.%s' % unique_id
-    if args.headless:
-        tmux_config = None
-        tmux_socket = None
-    else:
-        tmux_config = prefix + 'tmux_config.%s' % unique_id
-        tmux_socket = prefix + 'socket.%s' % unique_id
+    tmux_config = prefix + 'tmux_config.%s' % unique_id
+    tmux_socket = prefix + 'socket.%s' % unique_id
 
     width, height = args.width, args.height
     if width is None:
@@ -211,20 +206,19 @@ def do_the_needful():
     if height is None:
         height = int(subprocess.check_output(['tput', 'lines']).strip().decode(sys.stdout.encoding))
 
-    if not args.headless:
-        with open(tmux_config, 'w') as tmux_config_file:
-            tmux_config_file.write('\n'.join([
-                "set-option -g status-left-length 70",
-                "set -s escape-time 0",
-                "set -g status-left '#(tail -n1 %s)'" % output,
-                "set -g status-right ''",
-                "set -g status-interval 1",
-                "set -g default-terminal 'screen-256color'",
-                "set -g force-width %s" % width,
-                "set -g force-height %s" % height,
-                "set-option -g status-position top",
-                "set-window-option -g window-status-current-format ''",
-                "set-window-option -g window-status-format ''"]))
+    with open(tmux_config, 'w') as tmux_config_file:
+        tmux_config_file.write('\n'.join([
+            "set-option -g status-left-length 70",
+            'set -s escape-time 0",
+            "set -g status-left '#(tail -n1 %s)'" % output,
+            "set -g status-right ''",
+            "set -g status-interval 1",
+            "set -g default-terminal 'screen-256color'",
+            "set -g force-width %s" % width,
+            "set -g force-height %s" % height,
+            "set-option -g status-position top",
+            "set-window-option -g window-status-current-format ''",
+            "set-window-option -g window-status-format ''"]))
 
     # This gubbins sets up the fifo
     subprocess.call(['mkfifo', fifo])
@@ -257,19 +251,8 @@ def do_the_needful():
     command = [part for part in args.command.split(' ')
                if part.strip() != '']
 
-    if args.headless:
-        if os.fork() != 0:
-            # If we're headless, we're going to want to kill the main process
-            exit(0)
-        else:
-            devnull = open('/dev/null', 'w')
-            proc = subprocess.Popen(['script', '-q', '-t0', flush, fifo] + command,
-                                    stdout=devnull)
-            print('%s/%s' % (args.host, session['id']), proc.pid)
-
-    else:
-        proc = subprocess.Popen(['tmux', '-S', tmux_socket, '-2', '-f', tmux_config,
-                                 'new', 'script', '-q', '-t0', flush, fifo] + command)
+    proc = subprocess.Popen(['tmux', '-S', tmux_socket, '-2', '-f', tmux_config,
+                             'new', 'script', '-q', '-t0', flush, fifo] + command)
 
     comms_thread = Thread(target=communicate, args=(host, session, fifo, output, tmux_socket))
     comms_thread.daemon = True
@@ -282,14 +265,13 @@ def do_the_needful():
         if mess is not None:
             os.remove(mess)
 
-    if not args.headless:
-        print("You have disconnected from your broadcast session.")
-        print("To reconnect, run:")
-        print("")
-        print("termcast --session %s --token %s --width %s --height %s" % (session['id'], 
-                                                                           session['token'],
-                                                                           session['width'],
-                                                                           session['height']))
+    print("You have disconnected from your broadcast session.")
+    print("To reconnect, run:")
+    print("")
+    print("termcast --session %s --token %s --width %s --height %s" % (session['id'], 
+                                                                       session['token'],
+                                                                       session['width'],
+                                                                       session['height']))
 
 
 if __name__ == "__main__":
