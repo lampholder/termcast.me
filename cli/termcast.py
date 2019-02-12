@@ -60,13 +60,13 @@ def communicate(host, session, fifo, output, tmux_socket):
         with connection_lock:
             while container['connection'] is None or not container['connection'].connected:
                 try:
-                    logging.warn('Attempting websocket connection')
+                    logging.info('Attempting websocket connection')
                     out.write('Connecting...\n')
                     container['connection'] = create_connection(url)
                     container['connection'].send(json.dumps({'type': 'registerPublisher',
                                                              'token': session['token'],
                                                              'body': ''}))
-                    logging.warn('Attempt succeeded')
+                    logging.info('Attempt succeeded')
                     out.write(template % (session['id'], container['viewers']))
                 except Exception:
                     logging.error('Attempt to create websocket connection failed')
@@ -177,13 +177,14 @@ def do_the_needful():
     parser.add_argument('--session', default=None)
     parser.add_argument('--logfile', default=None)
     parser.add_argument('--host', default='https://termcast.me')
+    parser.add_argument('--command', type=str, default='')
     args = parser.parse_args()
 
     unique_id = uuid.uuid4()
 
     # Configure logging
     if args.logfile is not None:
-        logging.basicConfig(level=logging.INFO,
+        logging.basicConfig(level=logging.ERROR,
                             filename=args.logfile,
                             format='[%(asctime)s] {%(pathname)s:%(lineno)d} %(levelname)s - %(message)s',
                             datefmt='%H:%M:%S')
@@ -195,8 +196,8 @@ def do_the_needful():
     prefix = '/tmp/termcast.'
 
     fifo = prefix + 'fifo.%s' % unique_id
-    tmux_config = prefix + 'tmux_config.%s' % unique_id
     output = prefix + 'output.%s' % unique_id
+    tmux_config = prefix + 'tmux_config.%s' % unique_id
     tmux_socket = prefix + 'socket.%s' % unique_id
 
     width, height = args.width, args.height
@@ -208,7 +209,7 @@ def do_the_needful():
     with open(tmux_config, 'w') as tmux_config_file:
         tmux_config_file.write('\n'.join([
             "set-option -g status-left-length 70",
-            "set -s escape-time 0",
+            'set -s escape-time 0",
             "set -g status-left '#(tail -n1 %s)'" % output,
             "set -g status-right ''",
             "set -g status-interval 1",
@@ -241,22 +242,28 @@ def do_the_needful():
             traceback.print_exc()
             exit(1)
 
-    comms_thread = Thread(target=communicate, args=(host, session, fifo, output, tmux_socket))
-    comms_thread.daemon = True
-    comms_thread.start()
-
     if platform.system() == 'Darwin':
         flush = '-F'
     else:
         flush = '-f'
 
-    subprocess.call(['tmux', '-S', tmux_socket, '-2', '-f', tmux_config,
-                     'new', 'script', '-q', '-t0', flush, fifo])
-    time.sleep(0.1) # Give tmux a chance to start - should really wait for socket file to exist.
+    os.environ['TERMCAST_URL'] = '%s/%s' % (args.host, session['id'])
+    command = [part for part in args.command.split(' ')
+               if part.strip() != '']
+
+    proc = subprocess.Popen(['tmux', '-S', tmux_socket, '-2', '-f', tmux_config,
+                             'new', 'script', '-q', '-t0', flush, fifo] + command)
+
+    comms_thread = Thread(target=communicate, args=(host, session, fifo, output, tmux_socket))
+    comms_thread.daemon = True
+    comms_thread.start()
+
+    proc.communicate()
 
     # Tidy up after ourselves.
     for mess in [fifo, tmux_config, output, tmux_socket]:
-        os.remove(mess)
+        if mess is not None:
+            os.remove(mess)
 
     print("You have disconnected from your broadcast session.")
     print("To reconnect, run:")
@@ -265,6 +272,7 @@ def do_the_needful():
                                                                        session['token'],
                                                                        session['width'],
                                                                        session['height']))
+
 
 if __name__ == "__main__":
     do_the_needful()
