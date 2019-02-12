@@ -36,7 +36,7 @@ class Host(object):
         return 'http%s://%s/' % ('s' if self._ssl else '', self._domain)
 
 
-def communicate(host, session, fifo, output, tmux_socket=None):
+def communicate(host, session, fifo, output, tmux_socket):
     """Handle all the bidirectional traffic"""
 
     #TODO: This should be in a config file.
@@ -112,7 +112,7 @@ def communicate(host, session, fifo, output, tmux_socket=None):
                 if received['type'] == 'viewcount':
                     container['viewers'] = received['body']
                     out.write(template % (session['id'], container['viewers']))
-                if received['type'] == 'requestSync' and tmux_socket != None:
+                if received['type'] == 'requestSync':
                     sync(target=received['requester'])
 
             except Exception:
