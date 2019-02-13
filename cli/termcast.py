@@ -209,7 +209,7 @@ def do_the_needful():
     with open(tmux_config, 'w') as tmux_config_file:
         tmux_config_file.write('\n'.join([
             "set-option -g status-left-length 70",
-            'set -s escape-time 0",
+            "set -s escape-time 0",
             "set -g status-left '#(tail -n1 %s)'" % output,
             "set -g status-right ''",
             "set -g status-interval 1",
@@ -242,14 +242,15 @@ def do_the_needful():
             traceback.print_exc()
             exit(1)
 
-    if platform.system() == 'Darwin':
-        flush = '-F'
-    else:
-        flush = '-f'
-
     os.environ['TERMCAST_URL'] = '%s/%s' % (args.host, session['id'])
     command = [part for part in args.command.split(' ')
                if part.strip() != '']
+
+    if platform.system() == 'Darwin':
+        flush = '-F'
+    else:
+        command = ['--command'] + command
+        flush = '-f'
 
     proc = subprocess.Popen(['tmux', '-S', tmux_socket, '-2', '-f', tmux_config,
                              'new', 'script', '-q', '-t0', flush, fifo] + command)
