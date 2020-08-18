@@ -178,6 +178,7 @@ def do_the_needful():
     parser.add_argument('--logfile', default=None)
     parser.add_argument('--host', default='https://termcast.me')
     parser.add_argument('--command', type=str, default='')
+    parser.add_argument('--old-tmux', action="store_true", help="Experimental option to support systems with older versions of tmux installed")
     args = parser.parse_args()
 
     unique_id = uuid.uuid4()
@@ -214,11 +215,21 @@ def do_the_needful():
             "set -g status-right ''",
             "set -g status-interval 1",
             "set -g default-terminal 'screen-256color'",
-            "set -g force-width %s" % width,
-            "set -g force-height %s" % height,
             "set-option -g status-position top",
             "set-window-option -g window-status-current-format ''",
-            "set-window-option -g window-status-format ''"]))
+            "set-window-option -g window-status-format ''"
+            ]))
+        if not args.old_tmux:
+            tmux_config_file.write('\n')
+            tmux_config_file.write('\n'.join([
+                "set -g window-size manual",
+            ]))
+        else:
+            tmux_config_file.write('\n')
+            tmux_config_file.write('\n'.join([
+                "set -g force-width %s" % width,
+                "set -g force-height %s" % height,
+            ]))
 
     # This gubbins sets up the fifo
     subprocess.call(['mkfifo', fifo])
@@ -252,8 +263,14 @@ def do_the_needful():
         command = ['--command'] + command
         flush = '-f'
 
-    proc = subprocess.Popen(['tmux', '-S', tmux_socket, '-2', '-f', tmux_config,
-                             'new', 'script', '-q', '-t0', flush, fifo] + command)
+    if not args.old_tmux:
+        proc = subprocess.Popen(['tmux', '-S', tmux_socket, '-2', '-f', tmux_config,
+                                 'new', '-x%s' % width, '-y%s' % height, 'script',
+                                 '-q', '-t0', flush, fifo] + command)
+    else:
+        proc = subprocess.Popen(['tmux', '-S', tmux_socket, '-2', '-f', tmux_config,
+                                 'new', 'script',
+                                 '-q', '-t0', flush, fifo] + command)
 
     comms_thread = Thread(target=communicate, args=(host, session, fifo, output, tmux_socket))
     comms_thread.daemon = True
