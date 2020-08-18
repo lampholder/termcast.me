@@ -22,7 +22,7 @@ Tmux is in the mix because:
 
 ## Current state:
 
-**N.B.** If you see errors from tmux about configuration commands, it might be that you're installed version of tmux is too old. Obviously it would be better if termcast detected this automatically - it doesn't, but you can try and run it with tmux configuration options compatible with older versions of tmux by running with the `--old-tmux` flag.
+**N.B.** If you see errors from tmux about configuration options, it might be that your version of tmux is old. Obviously it would be better if termcast detected and handled this automatically - it doesn't, but you can try and run it with tmux configuration options compatible with older versions of tmux by running with the `--old-tmux` flag.
 
 The pip termcast only works on python >= 2.7.9 because earlier versions can't support SNI :(
 
