@@ -30,6 +30,16 @@ termcast is in alpha but the happy path is actually working pretty well. There a
 
 Relying on my server running at termcast.me for mission critical procedures is... not recommended. The server is currently a Single Point of Failure, and could go down at any time.
 
+### Running your own server
+
+You can run your own server - a dockerize version of the latest server instance is available at dockerhub, so this should be as simple as:
+
+```
+docker run -p 80:8080 -d lampholder/termcast.me:v0.1
+```
+
+You can specify a host when running the `termcast` script using the `--host` flag.
+
 ## Usages of the installed script
 
 `$ termcast` will launch a new session identified with a dictionary word randomly selected
