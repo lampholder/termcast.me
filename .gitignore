@@ -1,7 +1,7 @@
 sessions.db
 termcast.egg-info
 *.pyc
-server/build
-server/node_modules
-cli/dist
-cli/build
+/server/build
+/server/node_modules
+/cli/build/
+/cli/dist/
