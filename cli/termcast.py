@@ -286,10 +286,11 @@ def do_the_needful():
     print("You have disconnected from your broadcast session.")
     print("To reconnect, run:")
     print("")
-    print("termcast --session %s --token %s --width %s --height %s" % (session['id'], 
-                                                                       session['token'],
-                                                                       session['width'],
-                                                                       session['height']))
+    print("termcast --host %s --session %s --token %s --width %s --height %s" % (args.host,
+                                                                                 session['id'], 
+                                                                                 session['token'],
+                                                                                 session['width'],
+                                                                                 session['height']))
 
 
 if __name__ == "__main__":
