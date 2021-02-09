@@ -1,3 +1,5 @@
 sessions.db
 termcast.egg-info
 *.pyc
+server/build
+server/node_modules
