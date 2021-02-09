@@ -30,7 +30,7 @@ termcast is in alpha but the happy path is actually working pretty well. There a
 
 Relying on my server running at termcast.me for mission critical procedures is... not recommended. The server is currently a Single Point of Failure, and could go down at any time.
 
-### Running your own server
+### Running your own server
 
 You can run your own server - a dockerize version of the latest server instance is available at dockerhub, so this should be as simple as:
 
