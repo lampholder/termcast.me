@@ -8,6 +8,7 @@ import time
 import uuid
 import json
 import logging
+import tempfile
 import argparse
 import platform
 import traceback
@@ -194,7 +195,7 @@ def do_the_needful():
 
     logging.info('Starting...')
 
-    prefix = '/tmp/termcast.'
+    prefix = '%s/termcast.' % tempfile.gettempdir()
 
     fifo = prefix + 'fifo.%s' % unique_id
     output = prefix + 'output.%s' % unique_id
