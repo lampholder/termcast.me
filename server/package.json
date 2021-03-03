@@ -8,7 +8,7 @@
     "hat": "0.0.3",
     "monkeypatch": "^1.0.0",
     "promise": "^8.0.1",
-    "pug": "^2.0.0-rc.2",
+    "pug": "^3.0.1",
     "random-words": "^0.0.1",
     "sqlite3": "^5.0.1",
     "websocket": "^1.0.24",
